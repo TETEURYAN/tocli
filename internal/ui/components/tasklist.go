@@ -32,8 +32,12 @@ func (m *TaskListModel) View() string {
 		return lipgloss.JoinVertical(lipgloss.Left, title, "", content)
 	}
 
-	// Title + counter + blank + optional scroll row ≈ 5 lines of chrome.
-	contentHeight := m.Height - 5
+	// Title + counter (+ optional legend) + blank + optional scroll row.
+	chromeLines := 5
+	if m.Width >= 60 {
+		chromeLines = 6
+	}
+	contentHeight := m.Height - chromeLines
 	if contentHeight < 1 {
 		contentHeight = 1
 	}
@@ -58,7 +62,12 @@ func (m *TaskListModel) View() string {
 	}
 
 	counter := s.Subtitle.Render(fmt.Sprintf("  %d open · %d done", openCount, doneCount))
-	lines = append(lines, title, counter, "")
+	lines = append(lines, title, counter)
+	if m.Width >= 60 {
+		legend := s.Dim.Render("  W work · P personal · L learn · J job · · other")
+		lines = append(lines, legend)
+	}
+	lines = append(lines, "")
 
 	end := m.Offset + contentHeight
 	if end > len(m.Tasks) {
@@ -81,24 +90,13 @@ func (m *TaskListModel) View() string {
 
 func (m TaskListModel) renderTask(task domain.Task, selected bool) string {
 	s := m.styles
-	maxWidth := m.Width - 10
+	accent := theme.ListCategoryAccent(task.ListName)
+	mark := theme.ListCategoryMarker(task.ListName)
+	// Cursor + colored marker + space + title.
+	const markCells = 2
+	maxWidth := m.Width - 10 - markCells
 	if maxWidth < 8 {
 		maxWidth = 8
-	}
-
-	var icon string
-	var style lipgloss.Style
-
-	switch {
-	case task.Status == domain.TaskCompleted:
-		icon = "  "
-		style = s.TaskDone
-	case task.IsOverdue():
-		icon = "  "
-		style = s.TaskOverdue
-	default:
-		icon = "  "
-		style = s.TaskOpen
 	}
 
 	title := task.Title
@@ -106,13 +104,44 @@ func (m TaskListModel) renderTask(task domain.Task, selected bool) string {
 		title = title[:maxWidth-1] + "…"
 	}
 
+	markStyle := lipgloss.NewStyle().Foreground(accent)
+	var textStyle lipgloss.Style
+	switch {
+	case task.Status == domain.TaskCompleted:
+		textStyle = lipgloss.NewStyle().
+			Foreground(accent).
+			Strikethrough(true).
+			Faint(true)
+	case task.IsOverdue():
+		textStyle = s.TaskOverdue
+	default:
+		textStyle = lipgloss.NewStyle().Foreground(accent)
+	}
+
+	if selected && m.Focused {
+		markStyle = markStyle.Bold(true)
+		switch {
+		case task.Status == domain.TaskCompleted:
+			textStyle = lipgloss.NewStyle().
+				Foreground(accent).
+				Strikethrough(true).
+				Faint(true).
+				Bold(true)
+		case task.IsOverdue():
+			textStyle = s.TaskOverdue.Bold(true)
+		default:
+			textStyle = lipgloss.NewStyle().Foreground(accent).Bold(true)
+		}
+	}
+
+	markStyled := markStyle.Render(mark + " ")
+
 	cursor := "  "
 	if selected && m.Focused {
 		cursor = "▸ "
-		style = s.TaskSelected
 	}
 
-	return cursor + icon + style.Render(title)
+	return cursor + markStyled + textStyle.Render(title)
 }
 
 func (m *TaskListModel) MoveUp() {
