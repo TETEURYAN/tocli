@@ -55,6 +55,21 @@ func (r *TaskRepo) CompleteTask(taskID, listID string) error {
 	return fmt.Errorf("task %s not found", taskID)
 }
 
+func (r *TaskRepo) ReopenTask(taskID, listID string) error {
+	tasks, ok := r.tasks[listID]
+	if !ok {
+		return fmt.Errorf("list %s not found", listID)
+	}
+	for i := range tasks {
+		if tasks[i].ID == taskID {
+			tasks[i].Reopen()
+			r.tasks[listID] = tasks
+			return nil
+		}
+	}
+	return fmt.Errorf("task %s not found", taskID)
+}
+
 func (r *TaskRepo) CreateTask(listID, title string) (domain.Task, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {

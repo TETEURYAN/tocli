@@ -520,7 +520,7 @@ func (m Model) renderStatusBar() string {
 		helpKeys = []struct{ key, desc string }{
 			{"↑↓/jk", "navigate"},
 			{"tab", "switch pane"},
-			{"space", "toggle"},
+			{"space", "done/reopen"},
 			{"n", "new task"},
 			{"r", "refresh"},
 			{"?", "help"},
@@ -556,7 +556,7 @@ func (m Model) renderHelp() string {
 		{"k / ↑", "Move up"},
 		{"Tab", "Next pane"},
 		{"Shift+Tab", "Previous pane"},
-		{"Space / Enter", "Toggle task complete"},
+		{"Space / Enter", "Complete or reopen task"},
 		{"n", "New task (tasks pane)"},
 		{"r", "Refresh data"},
 		{"?", "Toggle help"},
@@ -618,6 +618,23 @@ func (m Model) toggleTask() tea.Cmd {
 	if task.Status == domain.TaskOpen {
 		return func() tea.Msg {
 			if err := m.taskUC.CompleteTask(taskID, listID); err != nil {
+				return errMsg{err: err}
+			}
+			lists, err := m.taskUC.ListTaskLists()
+			if err != nil {
+				return errMsg{err: err}
+			}
+			tasks, err := m.taskUC.ListAllTasks()
+			if err != nil {
+				return errMsg{err: err}
+			}
+			return tasksLoadedMsg{tasks: tasks, lists: lists}
+		}
+	}
+
+	if task.Status == domain.TaskCompleted {
+		return func() tea.Msg {
+			if err := m.taskUC.ReopenTask(taskID, listID); err != nil {
 				return errMsg{err: err}
 			}
 			lists, err := m.taskUC.ListTaskLists()

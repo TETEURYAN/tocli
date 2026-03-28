@@ -99,6 +99,14 @@ func (c *TasksCLI) CompleteTask(taskID, listID string) error {
 	return nil
 }
 
+func (c *TasksCLI) ReopenTask(taskID, listID string) error {
+	_, err := c.run("tasks", "tasks", "update", taskID, "--tasklist="+listID, "--status=needsAction")
+	if err != nil {
+		return fmt.Errorf("reopen task: %w", err)
+	}
+	return nil
+}
+
 func (c *TasksCLI) CreateTask(listID, title string) (domain.Task, error) {
 	_, _ = listID, title
 	return domain.Task{}, fmt.Errorf("CreateTask is not implemented for the Google Tasks CLI adapter")

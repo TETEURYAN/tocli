@@ -25,6 +25,10 @@ func (uc *TaskUseCase) CompleteTask(taskID, listID string) error {
 	return uc.repo.CompleteTask(taskID, listID)
 }
 
+func (uc *TaskUseCase) ReopenTask(taskID, listID string) error {
+	return uc.repo.ReopenTask(taskID, listID)
+}
+
 func (uc *TaskUseCase) CreateTask(listID, title string) (domain.Task, error) {
 	t := strings.TrimSpace(title)
 	if t == "" {
