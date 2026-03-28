@@ -1,6 +1,8 @@
 <div align="center">
 
-# ⚡ tocli
+![Demonstração](assets/tocli-logo.png)
+
+
 ### Painel de produtividade no terminal — tarefas, agenda e métricas
 
 ![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)
@@ -8,7 +10,6 @@
 ![License](https://img.shields.io/badge/License-MIT-purple)
 ![Status](https://img.shields.io/badge/Status-v0.1--alpha-orange)
 
-![Demonstração](assets/tocli.txt)
 
 </div>
 
