@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -21,7 +22,124 @@ const (
 	AgendaPane
 	GraphPane
 	paneCount
+
+	// Below this width the layout stacks panels vertically.
+	minSplitWidth = 68
 )
+
+// bodyOuterLines is vertical space for the main panel row (between header and status).
+func bodyOuterLines(termHeight int) int {
+	if termHeight <= 0 {
+		return 3
+	}
+	// One line header + one line status → remaining rows for the body.
+	return max(3, termHeight-2)
+}
+
+func panelInnerHeight(outer int) int {
+	if outer <= 3 {
+		return 1
+	}
+	// Border + padding: slightly tighter than before so content uses more of the panel.
+	return max(1, outer-3)
+}
+
+func splitStackOuterHeights(total int) (tasks, agenda, contrib, progress int) {
+	if total <= 0 {
+		return 1, 1, 1, 1
+	}
+	if total <= 10 {
+		q := total / 4
+		r := total % 4
+		tasks, agenda, contrib, progress = q, q, q, q
+		for i := 0; i < r; i++ {
+			switch i % 4 {
+			case 0:
+				tasks++
+			case 1:
+				agenda++
+			case 2:
+				contrib++
+			default:
+				progress++
+			}
+		}
+		return max(1, tasks), max(1, agenda), max(1, contrib), max(1, progress)
+	}
+	progress = min(8, max(3, total*13/100))
+	rest := total - progress
+	tasks = max(4, rest*40/100)
+	agenda = max(3, rest*30/100)
+	contrib = rest - tasks - agenda
+	if contrib < 3 {
+		need := 3 - contrib
+		contrib = 3
+		tasks = max(4, tasks-need)
+		if tasks+agenda+contrib+progress > total {
+			tasks = total - progress - agenda - contrib
+		}
+		if tasks < 4 {
+			tasks = 4
+			agenda = max(3, total-progress-contrib-tasks)
+		}
+	}
+	return tasks, agenda, contrib, progress
+}
+
+func splitColumnWidths(termW int) (left, right int) {
+	// Narrower task column on laptop-sized terminals → more space for agenda + graph.
+	ratioPct := 38
+	if termW < 120 {
+		ratioPct = 30
+	}
+	if termW < 90 {
+		ratioPct = 28
+	}
+	left = termW * ratioPct / 100
+	minLeft, minRight := 18, 22
+	if termW < 90 {
+		minLeft = 16
+		minRight = 20
+	}
+	if left < minLeft {
+		left = minLeft
+	}
+	right = termW - left - 1
+	if right < minRight {
+		right = minRight
+		left = termW - right - 1
+		if left < 16 {
+			left = 16
+			right = termW - left - 1
+		}
+	}
+	return left, right
+}
+
+func allocateRightColumnInner(rightInner int) (agendaH, contribH, progressH int) {
+	if rightInner < 6 {
+		agendaH = max(2, rightInner*35/100)
+		progressH = max(2, rightInner*20/100)
+		contribH = max(1, rightInner-agendaH-progressH)
+		return agendaH, contribH, progressH
+	}
+	// Right column joins agenda, contrib, progress with no blank lines between blocks.
+	avail := max(4, rightInner)
+	progressH = min(5, max(2, avail*12/100))
+	agendaH = max(2, avail*34/100)
+	contribH = avail - agendaH - progressH
+	if contribH < 2 {
+		short := 2 - contribH
+		contribH = 2
+		if agendaH-short >= 2 {
+			agendaH -= short
+		} else {
+			progressH = max(2, progressH-short)
+		}
+		contribH = avail - agendaH - progressH
+	}
+	return agendaH, contribH, progressH
+}
 
 type Model struct {
 	tasks        components.TaskListModel
@@ -43,10 +161,21 @@ type Model struct {
 	loading    bool
 	err        error
 	showHelp   bool
+
+	creatingTask    bool
+	createInput     textinput.Model
+	taskLists       []domain.TaskList
+	createListIndex int
 }
 
 type tasksLoadedMsg struct {
 	tasks []domain.Task
+	lists []domain.TaskList
+}
+
+type createTaskDoneMsg struct {
+	tasks []domain.Task
+	lists []domain.TaskList
 }
 
 type eventsLoadedMsg struct {
@@ -70,6 +199,10 @@ func NewModel(
 	progressUC *usecase.ProgressUseCase,
 ) Model {
 	s := theme.NewStyles()
+	ti := textinput.New()
+	ti.Placeholder = "What needs doing?"
+	ti.CharLimit = 280
+	ti.Width = 40
 	return Model{
 		tasks:        components.NewTaskListModel(s),
 		agenda:       components.NewAgendaModel(s),
@@ -83,6 +216,7 @@ func NewModel(
 		styles:       s,
 		activePane:   TaskPane,
 		loading:      true,
+		createInput:  ti,
 	}
 }
 
@@ -101,15 +235,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.ready = true
+		if m.creatingTask {
+			w := min(64, max(24, m.width-14))
+			if w > 0 {
+				m.createInput.Width = w
+			}
+		}
 		m.updateLayout()
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.creatingTask {
+			return m.handleCreateKey(msg)
+		}
 		return m.handleKey(msg)
 
 	case tasksLoadedMsg:
 		m.loading = false
 		m.tasks.Tasks = filterActiveTasks(msg.tasks)
+		m.taskLists = msg.lists
+		m.clampCreateListIndex()
+		return m, nil
+
+	case createTaskDoneMsg:
+		m.tasks.Tasks = filterActiveTasks(msg.tasks)
+		m.taskLists = msg.lists
+		m.clampCreateListIndex()
+		m.creatingTask = false
+		m.createInput.Blur()
+		m.createInput.SetValue("")
 		return m, nil
 
 	case eventsLoadedMsg:
@@ -143,6 +297,10 @@ func (m Model) View() string {
 		return m.renderHelp()
 	}
 
+	if m.creatingTask {
+		return m.renderCreateTaskScreen()
+	}
+
 	header := m.renderHeader()
 	body := m.renderBody()
 	status := m.renderStatusBar()
@@ -172,6 +330,12 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Refresh):
 		m.loading = true
 		return m, tea.Batch(m.loadTasks(), m.loadEvents(), m.loadContribution())
+
+	case key.Matches(msg, m.keys.NewTask):
+		if m.activePane == TaskPane {
+			m.startCreateTask()
+		}
+		return m, nil
 
 	case key.Matches(msg, m.keys.Up):
 		switch m.activePane {
@@ -208,22 +372,40 @@ func (m *Model) updateFocus() {
 }
 
 func (m *Model) updateLayout() {
-	leftWidth := m.width * 38 / 100
-	rightWidth := m.width - leftWidth - 4
+	bodyOuter := bodyOuterLines(m.height)
+	fullW := max(12, m.width)
 
-	topHeight := (m.height - 4) * 40 / 100
-	bottomHeight := (m.height - 4) - topHeight
+	if m.width < minSplitWidth {
+		tOut, aOut, cOut, pOut := splitStackOuterHeights(bodyOuter)
+		innerW := max(8, fullW-4)
+		m.tasks.Width = innerW
+		m.tasks.Height = panelInnerHeight(tOut)
+		m.agenda.Width = innerW
+		m.agenda.Height = panelInnerHeight(aOut)
+		m.contribution.Width = innerW
+		m.contribution.Height = panelInnerHeight(cOut)
+		m.progress.Width = innerW
+		m.progress.Height = panelInnerHeight(pOut)
+		m.updateFocus()
+		return
+	}
 
-	m.tasks.Width = leftWidth
-	m.tasks.Height = m.height - 4
+	leftOuter, rightOuter := splitColumnWidths(m.width)
+	taskInner := panelInnerHeight(leftOuter)
+	rightInner := panelInnerHeight(rightOuter)
+	agH, coH, prH := allocateRightColumnInner(rightInner)
 
-	m.agenda.Width = rightWidth
-	m.agenda.Height = topHeight
+	m.tasks.Width = max(8, taskInner)
+	m.tasks.Height = taskInner
 
-	m.contribution.Width = rightWidth
-	m.contribution.Height = bottomHeight / 2
+	m.agenda.Width = max(8, rightInner)
+	m.agenda.Height = agH
 
-	m.progress.Width = rightWidth
+	m.contribution.Width = max(8, rightInner)
+	m.contribution.Height = coH
+
+	m.progress.Width = max(8, rightInner)
+	m.progress.Height = prH
 
 	m.updateFocus()
 }
@@ -235,28 +417,59 @@ func (m Model) renderHeader() string {
 		Padding(0, 1).
 		Render("⚡ tocli")
 
-	desc := lipgloss.NewStyle().
-		Foreground(theme.T.Muted).
-		Render(" productivity dashboard")
+	compact := m.width < 96 || m.height < 26
+	var mid string
+	if compact {
+		mid = lipgloss.NewStyle().
+			Foreground(theme.T.Muted).
+			Render(" · dashboard")
+	} else {
+		mid = lipgloss.NewStyle().
+			Foreground(theme.T.Muted).
+			Render(" productivity dashboard")
+	}
 
+	rightFmt := "Mon Jan 2, 15:04"
+	if compact && m.width < 72 {
+		rightFmt = "15:04"
+	}
 	right := lipgloss.NewStyle().
 		Foreground(theme.T.Muted).
-		Render(time.Now().Format("Mon Jan 2, 15:04"))
+		Render(time.Now().Format(rightFmt))
 
-	gap := strings.Repeat(" ", max(0, m.width-lipgloss.Width(title+desc)-lipgloss.Width(right)-2))
+	leftPart := title + mid
+	gap := strings.Repeat(" ", max(0, m.width-lipgloss.Width(leftPart)-lipgloss.Width(right)-2))
 
 	return lipgloss.NewStyle().
 		Background(theme.T.Surface).
 		Width(m.width).
 		Padding(0, 1).
-		Render(title + desc + gap + right)
+		Render(leftPart + gap + right)
 }
 
 func (m Model) renderBody() string {
-	leftWidth := m.width * 38 / 100
-	rightWidth := m.width - leftWidth - 6
+	bodyOuter := bodyOuterLines(m.height)
+	if m.width < minSplitWidth {
+		return m.renderBodyStacked(bodyOuter)
+	}
+	return m.renderBodyWide(bodyOuter)
+}
 
-	leftPanel := m.renderPanel(m.tasks.View(), leftWidth, m.height-4, m.activePane == TaskPane)
+func (m Model) renderBodyStacked(bodyOuter int) string {
+	tOut, aOut, cOut, pOut := splitStackOuterHeights(bodyOuter)
+	w := m.width
+	return lipgloss.JoinVertical(lipgloss.Left,
+		m.renderPanel(m.tasks.View(), w, tOut, m.activePane == TaskPane),
+		m.renderPanel(m.agenda.View(), w, aOut, m.activePane == AgendaPane),
+		m.renderPanel(m.contribution.View(), w, cOut, m.activePane == GraphPane),
+		m.renderPanel(m.progress.View(), w, pOut, m.activePane == GraphPane),
+	)
+}
+
+func (m Model) renderBodyWide(bodyOuter int) string {
+	leftOuter, rightOuter := splitColumnWidths(m.width)
+
+	leftPanel := m.renderPanel(m.tasks.View(), leftOuter, bodyOuter, m.activePane == TaskPane)
 
 	agendaView := m.agenda.View()
 	contribView := m.contribution.View()
@@ -264,13 +477,11 @@ func (m Model) renderBody() string {
 
 	rightContent := lipgloss.JoinVertical(lipgloss.Left,
 		agendaView,
-		"",
 		contribView,
-		"",
 		progressView,
 	)
 
-	rightPanel := m.renderPanel(rightContent, rightWidth, m.height-4, m.activePane != TaskPane)
+	rightPanel := m.renderPanel(rightContent, rightOuter, bodyOuter, m.activePane != TaskPane)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, " ", rightPanel)
 }
@@ -296,13 +507,25 @@ func (m Model) renderStatusBar() string {
 		parts = append(parts, lipgloss.NewStyle().Foreground(theme.T.Error).Render(fmt.Sprintf(" %v", m.err)))
 	}
 
-	helpKeys := []struct{ key, desc string }{
-		{"↑↓/jk", "navigate"},
-		{"tab", "switch pane"},
-		{"space", "toggle"},
-		{"r", "refresh"},
-		{"?", "help"},
-		{"q", "quit"},
+	var helpKeys []struct{ key, desc string }
+	if m.width < 92 {
+		helpKeys = []struct{ key, desc string }{
+			{"tab", "pane"},
+			{"n", "new"},
+			{"r", "refresh"},
+			{"?", "help"},
+			{"q", "quit"},
+		}
+	} else {
+		helpKeys = []struct{ key, desc string }{
+			{"↑↓/jk", "navigate"},
+			{"tab", "switch pane"},
+			{"space", "done/reopen"},
+			{"n", "new task"},
+			{"r", "refresh"},
+			{"?", "help"},
+			{"q", "quit"},
+		}
 	}
 
 	var helpParts []string
@@ -333,7 +556,8 @@ func (m Model) renderHelp() string {
 		{"k / ↑", "Move up"},
 		{"Tab", "Next pane"},
 		{"Shift+Tab", "Previous pane"},
-		{"Space / Enter", "Toggle task complete"},
+		{"Space / Enter", "Complete or reopen task"},
+		{"n", "New task (tasks pane)"},
 		{"r", "Refresh data"},
 		{"?", "Toggle help"},
 		{"q / Ctrl+C", "Quit"},
@@ -353,11 +577,15 @@ func (m Model) renderHelp() string {
 
 func (m Model) loadTasks() tea.Cmd {
 	return func() tea.Msg {
+		lists, err := m.taskUC.ListTaskLists()
+		if err != nil {
+			return errMsg{err: err}
+		}
 		tasks, err := m.taskUC.ListAllTasks()
 		if err != nil {
 			return errMsg{err: err}
 		}
-		return tasksLoadedMsg{tasks: tasks}
+		return tasksLoadedMsg{tasks: tasks, lists: lists}
 	}
 }
 
@@ -392,11 +620,32 @@ func (m Model) toggleTask() tea.Cmd {
 			if err := m.taskUC.CompleteTask(taskID, listID); err != nil {
 				return errMsg{err: err}
 			}
+			lists, err := m.taskUC.ListTaskLists()
+			if err != nil {
+				return errMsg{err: err}
+			}
 			tasks, err := m.taskUC.ListAllTasks()
 			if err != nil {
 				return errMsg{err: err}
 			}
-			return tasksLoadedMsg{tasks: tasks}
+			return tasksLoadedMsg{tasks: tasks, lists: lists}
+		}
+	}
+
+	if task.Status == domain.TaskCompleted {
+		return func() tea.Msg {
+			if err := m.taskUC.ReopenTask(taskID, listID); err != nil {
+				return errMsg{err: err}
+			}
+			lists, err := m.taskUC.ListTaskLists()
+			if err != nil {
+				return errMsg{err: err}
+			}
+			tasks, err := m.taskUC.ListAllTasks()
+			if err != nil {
+				return errMsg{err: err}
+			}
+			return tasksLoadedMsg{tasks: tasks, lists: lists}
 		}
 	}
 
@@ -407,6 +656,156 @@ func tickCmd() tea.Cmd {
 	return tea.Tick(time.Minute, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
+}
+
+func (m *Model) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, m.keys.Quit):
+		return m, tea.Quit
+
+	case key.Matches(msg, m.keys.Enter):
+		return m, m.submitNewTask()
+
+	case msg.String() == "esc":
+		m.cancelCreateTask()
+		return m, nil
+
+	case key.Matches(msg, m.keys.PrevList):
+		if len(m.taskLists) > 0 {
+			m.createListIndex = (m.createListIndex - 1 + len(m.taskLists)) % len(m.taskLists)
+		}
+		return m, nil
+
+	case key.Matches(msg, m.keys.NextList):
+		if len(m.taskLists) > 0 {
+			m.createListIndex = (m.createListIndex + 1) % len(m.taskLists)
+		}
+		return m, nil
+
+	default:
+		var cmd tea.Cmd
+		m.createInput, cmd = m.createInput.Update(msg)
+		return m, cmd
+	}
+}
+
+func (m *Model) startCreateTask() {
+	m.creatingTask = true
+	m.err = nil
+	m.createInput.SetValue("")
+	w := min(64, max(24, m.width-14))
+	if w > 0 {
+		m.createInput.Width = w
+	}
+	m.createListIndex = 0
+	if sel := m.tasks.SelectedTask(); sel != nil {
+		for i, l := range m.taskLists {
+			if l.ID == sel.ListID {
+				m.createListIndex = i
+				break
+			}
+		}
+	}
+	m.clampCreateListIndex()
+	m.createInput.Focus()
+}
+
+func (m *Model) cancelCreateTask() {
+	m.creatingTask = false
+	m.createInput.Blur()
+	m.createInput.SetValue("")
+	m.err = nil
+}
+
+func (m *Model) clampCreateListIndex() {
+	if len(m.taskLists) == 0 {
+		m.createListIndex = 0
+		return
+	}
+	if m.createListIndex >= len(m.taskLists) {
+		m.createListIndex = 0
+	}
+}
+
+func (m Model) submitNewTask() tea.Cmd {
+	if len(m.taskLists) == 0 {
+		return func() tea.Msg {
+			return errMsg{err: fmt.Errorf("no task lists available")}
+		}
+	}
+	listID := m.taskLists[m.createListIndex].ID
+	title := m.createInput.Value()
+	return func() tea.Msg {
+		_, err := m.taskUC.CreateTask(listID, title)
+		if err != nil {
+			return errMsg{err: err}
+		}
+		lists, err := m.taskUC.ListTaskLists()
+		if err != nil {
+			return errMsg{err: err}
+		}
+		tasks, err := m.taskUC.ListAllTasks()
+		if err != nil {
+			return errMsg{err: err}
+		}
+		return createTaskDoneMsg{tasks: tasks, lists: lists}
+	}
+}
+
+func (m Model) renderCreateTaskScreen() string {
+	header := m.renderHeader()
+	bodyH := bodyOuterLines(m.height)
+
+	listLine := m.styles.Subtitle.Render("  List: ") +
+		m.styles.Dim.Render("no lists — try refresh (r)") +
+		m.styles.Subtitle.Render("  ·  [ / ] change list")
+	if len(m.taskLists) > 0 {
+		name := m.taskLists[m.createListIndex].Name
+		listLine = m.styles.Subtitle.Render("  List: ") +
+			m.styles.HelpKey.Render(name) +
+			m.styles.Subtitle.Render("  ·  [ / ] change list")
+	}
+
+	title := m.styles.Title.Render("  New task")
+	inputLine := "  " + m.createInput.View()
+	hint := m.styles.Dim.Render("  enter save  ·  esc cancel  ·  q quit")
+
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		"",
+		listLine,
+		"",
+		inputLine,
+		"",
+		hint,
+	)
+
+	boxW := min(max(8, m.width-4), 78)
+	innerH := max(8, bodyH-2)
+	panel := m.styles.Panel.Width(boxW).Height(innerH).Render(content)
+	body := lipgloss.Place(m.width, bodyH, lipgloss.Center, lipgloss.Center, panel)
+	status := m.renderCreateStatusBar()
+
+	return lipgloss.JoinVertical(lipgloss.Left, header, body, status)
+}
+
+func (m Model) renderCreateStatusBar() string {
+	left := m.styles.HelpKey.Render(" new task ")
+	if m.err != nil {
+		left += lipgloss.NewStyle().Foreground(theme.T.Error).Render(fmt.Sprintf("%v ", m.err))
+	}
+	helpParts := []string{
+		m.styles.HelpKey.Render("esc") + " " + m.styles.HelpDesc.Render("cancel"),
+		m.styles.HelpKey.Render("enter") + " " + m.styles.HelpDesc.Render("save"),
+		m.styles.HelpKey.Render("[ ]") + " " + m.styles.HelpDesc.Render("list"),
+	}
+	help := strings.Join(helpParts, "  ")
+	gap := strings.Repeat(" ", max(0, m.width-lipgloss.Width(left)-lipgloss.Width(help)-2))
+	return lipgloss.NewStyle().
+		Background(theme.T.Surface).
+		Width(m.width).
+		Padding(0, 1).
+		Render(left + gap + help)
 }
 
 func filterActiveTasks(tasks []domain.Task) []domain.Task {

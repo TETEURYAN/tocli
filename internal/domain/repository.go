@@ -6,6 +6,8 @@ type TaskRepository interface {
 	ListTaskLists() ([]TaskList, error)
 	ListTasks(listID string) ([]Task, error)
 	CompleteTask(taskID, listID string) error
+	ReopenTask(taskID, listID string) error
+	CreateTask(listID, title string) (Task, error)
 }
 
 type EventRepository interface {

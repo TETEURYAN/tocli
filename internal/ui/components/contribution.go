@@ -22,28 +22,23 @@ func NewContributionModel(s theme.Styles) ContributionModel {
 	return ContributionModel{styles: s}
 }
 
-func (m ContributionModel) View() string {
-	s := m.styles
-	title := s.Title.Render(fmt.Sprintf("  %d Contribution Graph", m.Data.Year))
-	subtitle := s.Subtitle.Render(fmt.Sprintf("  %d tasks completed this year", m.Data.Total))
-
-	var lines []string
-	lines = append(lines, title, subtitle, "")
-
-	monthLabels := m.renderMonthLabels()
-	lines = append(lines, "  "+monthLabels)
-
-	dayLabels := [7]string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
-
-	maxWeeks := (m.Width - 10) / 2
+func (m ContributionModel) maxWeeksFromWidth() int {
+	w := m.Width - 6
+	if w < 2 {
+		w = 2
+	}
+	maxWeeks := w / 2
 	if maxWeeks > usecase.WeeksInYear {
 		maxWeeks = usecase.WeeksInYear
 	}
-	if maxWeeks < 10 {
-		maxWeeks = 26
+	if maxWeeks < 1 {
+		maxWeeks = 1
 	}
+	return maxWeeks
+}
 
-	startWeek := 0
+func (m ContributionModel) weekWindow(maxWeeks int) (startWeek int) {
+	startWeek = 0
 	now := time.Now()
 	if now.Year() == m.Data.Year {
 		currentWeek := (now.YearDay() - 1 + int(time.Date(m.Data.Year, 1, 1, 0, 0, 0, 0, time.Local).Weekday())) / 7
@@ -51,8 +46,48 @@ func (m ContributionModel) View() string {
 			startWeek = currentWeek - maxWeeks + 1
 		}
 	}
+	return startWeek
+}
 
-	for day := 0; day < 7; day++ {
+func (m ContributionModel) View() string {
+	s := m.styles
+	maxWeeks := m.maxWeeksFromWidth()
+	startWeek := m.weekWindow(maxWeeks)
+
+	showSubtitle := m.Height >= 7
+	showMonth := m.Height >= 8
+	showLegend := m.Height >= 10
+	dayRows := 7
+	if m.Height < 8 {
+		dayRows = max(1, m.Height-1)
+		if dayRows > 7 {
+			dayRows = 7
+		}
+	}
+
+	var lines []string
+	title := s.Title.Render(fmt.Sprintf("  %d Contribution Graph", m.Data.Year))
+	lines = append(lines, title)
+	if showSubtitle {
+		subtitle := s.Subtitle.Render(fmt.Sprintf("  %d tasks completed this year", m.Data.Total))
+		lines = append(lines, subtitle)
+	}
+
+	if showMonth {
+		lines = append(lines, "")
+		monthLabels := m.renderMonthLabels(maxWeeks, startWeek)
+		lines = append(lines, "  "+monthLabels)
+	} else if showSubtitle && m.Height >= 8 {
+		lines = append(lines, "")
+	}
+
+	dayLabels := [7]string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
+	startDay := 0
+	if dayRows < 7 {
+		startDay = (7 - dayRows) / 2
+	}
+	for d := startDay; d < startDay+dayRows && d < 7; d++ {
+		day := d
 		var row strings.Builder
 
 		if day%2 == 1 {
@@ -70,9 +105,11 @@ func (m ContributionModel) View() string {
 		lines = append(lines, "  "+row.String())
 	}
 
-	lines = append(lines, "")
-	legend := m.renderLegend()
-	lines = append(lines, "  "+legend)
+	if showLegend {
+		lines = append(lines, "")
+		legend := m.renderLegend()
+		lines = append(lines, "  "+legend)
+	}
 
 	return strings.Join(lines, "\n")
 }
@@ -138,24 +175,7 @@ func (m ContributionModel) renderLegend() string {
 	return "    " + less + strings.Join(cells, "") + more
 }
 
-func (m ContributionModel) renderMonthLabels() string {
-	maxWeeks := (m.Width - 10) / 2
-	if maxWeeks > usecase.WeeksInYear {
-		maxWeeks = usecase.WeeksInYear
-	}
-	if maxWeeks < 10 {
-		maxWeeks = 26
-	}
-
-	startWeek := 0
-	now := time.Now()
-	if now.Year() == m.Data.Year {
-		currentWeek := (now.YearDay() - 1 + int(time.Date(m.Data.Year, 1, 1, 0, 0, 0, 0, time.Local).Weekday())) / 7
-		if currentWeek >= maxWeeks {
-			startWeek = currentWeek - maxWeeks + 1
-		}
-	}
-
+func (m ContributionModel) renderMonthLabels(maxWeeks, startWeek int) string {
 	months := []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
 	jan1 := time.Date(m.Data.Year, 1, 1, 0, 0, 0, 0, time.Local)
 	offset := int(jan1.Weekday())
