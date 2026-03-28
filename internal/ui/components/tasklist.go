@@ -23,7 +23,7 @@ func NewTaskListModel(s theme.Styles) TaskListModel {
 	return TaskListModel{styles: s}
 }
 
-func (m TaskListModel) View() string {
+func (m *TaskListModel) View() string {
 	s := m.styles
 	title := s.Title.Render("  Tasks")
 
@@ -32,9 +32,10 @@ func (m TaskListModel) View() string {
 		return lipgloss.JoinVertical(lipgloss.Left, title, "", content)
 	}
 
-	contentHeight := m.Height - 6
+	// Title + counter + blank + optional scroll row ≈ 5 lines of chrome.
+	contentHeight := m.Height - 5
 	if contentHeight < 1 {
-		contentHeight = 10
+		contentHeight = 1
 	}
 
 	if m.Cursor >= m.Offset+contentHeight {
@@ -81,8 +82,8 @@ func (m TaskListModel) View() string {
 func (m TaskListModel) renderTask(task domain.Task, selected bool) string {
 	s := m.styles
 	maxWidth := m.Width - 10
-	if maxWidth < 20 {
-		maxWidth = 40
+	if maxWidth < 8 {
+		maxWidth = 8
 	}
 
 	var icon string

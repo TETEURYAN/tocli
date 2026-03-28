@@ -1,6 +1,11 @@
 package domain
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+var ErrEmptyTaskTitle = errors.New("task title cannot be empty")
 
 type TaskStatus int
 

@@ -10,6 +10,7 @@ import (
 type ProgressBarModel struct {
 	Progress usecase.YearProgress
 	Width    int
+	Height   int
 	styles   theme.Styles
 }
 
@@ -23,9 +24,9 @@ func (m ProgressBarModel) View() string {
 
 	title := s.Title.Render(fmt.Sprintf("  %d Progress", p.Year))
 
-	barWidth := m.Width - 8
-	if barWidth < 20 {
-		barWidth = 40
+	barWidth := m.Width - 10
+	if barWidth < 4 {
+		barWidth = 4
 	}
 
 	filled := int(float64(barWidth) * p.Percentage / 100)
@@ -43,6 +44,16 @@ func (m ProgressBarModel) View() string {
 		"  Day %d of %d · %d days remaining",
 		p.DaysPassed, p.TotalDays, p.DaysRemaining,
 	))
+
+	if m.Height > 0 && m.Height <= 2 {
+		return strings.Join([]string{title, "  " + pctStr}, "\n")
+	}
+	if m.Height > 0 && m.Height <= 3 {
+		return strings.Join([]string{
+			title,
+			"  " + bar + " " + pctStr,
+		}, "\n")
+	}
 
 	return strings.Join([]string{
 		title,
