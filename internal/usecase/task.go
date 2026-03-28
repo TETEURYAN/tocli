@@ -1,6 +1,9 @@
 package usecase
 
-import "tocli/internal/domain"
+import (
+	"strings"
+	"tocli/internal/domain"
+)
 
 type TaskUseCase struct {
 	repo domain.TaskRepository
@@ -20,6 +23,14 @@ func (uc *TaskUseCase) ListTasks(listID string) ([]domain.Task, error) {
 
 func (uc *TaskUseCase) CompleteTask(taskID, listID string) error {
 	return uc.repo.CompleteTask(taskID, listID)
+}
+
+func (uc *TaskUseCase) CreateTask(listID, title string) (domain.Task, error) {
+	t := strings.TrimSpace(title)
+	if t == "" {
+		return domain.Task{}, domain.ErrEmptyTaskTitle
+	}
+	return uc.repo.CreateTask(listID, t)
 }
 
 func (uc *TaskUseCase) ListAllTasks() ([]domain.Task, error) {

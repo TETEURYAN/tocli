@@ -99,6 +99,11 @@ func (c *TasksCLI) CompleteTask(taskID, listID string) error {
 	return nil
 }
 
+func (c *TasksCLI) CreateTask(listID, title string) (domain.Task, error) {
+	_, _ = listID, title
+	return domain.Task{}, fmt.Errorf("CreateTask is not implemented for the Google Tasks CLI adapter")
+}
+
 func (c *TasksCLI) run(args ...string) ([]byte, error) {
 	cmd := exec.Command(c.binaryPath, args...)
 	out, err := cmd.Output()

@@ -14,6 +14,9 @@ type KeyMap struct {
 	Refresh   key.Binding
 	Help      key.Binding
 	Quit      key.Binding
+	NewTask   key.Binding
+	PrevList  key.Binding
+	NextList  key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -61,6 +64,18 @@ func DefaultKeyMap() KeyMap {
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
 			key.WithHelp("q", "quit"),
+		),
+		NewTask: key.NewBinding(
+			key.WithKeys("n"),
+			key.WithHelp("n", "new task"),
+		),
+		PrevList: key.NewBinding(
+			key.WithKeys("["),
+			key.WithHelp("[", "prev list"),
+		),
+		NextList: key.NewBinding(
+			key.WithKeys("]"),
+			key.WithHelp("]", "next list"),
 		),
 	}
 }

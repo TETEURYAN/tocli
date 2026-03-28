@@ -4,12 +4,15 @@ import (
 	"tocli/internal/domain"
 	"fmt"
 	"math/rand"
+	"strings"
+	"sync/atomic"
 	"time"
 )
 
 type TaskRepo struct {
-	lists []domain.TaskList
-	tasks map[string][]domain.Task
+	lists       []domain.TaskList
+	tasks       map[string][]domain.Task
+	taskIDSeq   uint64
 }
 
 func NewTaskRepo() *TaskRepo {
@@ -50,6 +53,31 @@ func (r *TaskRepo) CompleteTask(taskID, listID string) error {
 		}
 	}
 	return fmt.Errorf("task %s not found", taskID)
+}
+
+func (r *TaskRepo) CreateTask(listID, title string) (domain.Task, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return domain.Task{}, domain.ErrEmptyTaskTitle
+	}
+	if _, ok := r.tasks[listID]; !ok {
+		return domain.Task{}, fmt.Errorf("list %s not found", listID)
+	}
+	id := fmt.Sprintf("new-%d", atomic.AddUint64(&r.taskIDSeq, 1))
+	task := domain.Task{
+		ID:       id,
+		Title:    title,
+		Status:   domain.TaskOpen,
+		ListID:   listID,
+	}
+	for _, list := range r.lists {
+		if list.ID == listID {
+			task.ListName = list.Name
+			break
+		}
+	}
+	r.tasks[listID] = append(r.tasks[listID], task)
+	return task, nil
 }
 
 func (r *TaskRepo) seed() {
