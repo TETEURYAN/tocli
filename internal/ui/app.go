@@ -388,9 +388,21 @@ func (m Model) View() string {
 	return m.finalizeFrame(lipgloss.JoinVertical(lipgloss.Left, header, body, status))
 }
 
+func quitFromKey(msg tea.KeyMsg, quit key.Binding) bool {
+	if key.Matches(msg, quit) {
+		return true
+	}
+	// Bubble Tea v1 may emit rune keys where bubbles' matcher misses "q".
+	if msg.Type == tea.KeyRunes && len(msg.Runes) == 1 {
+		r := msg.Runes[0]
+		return r == 'q' || r == 'Q'
+	}
+	return false
+}
+
 func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
-	case key.Matches(msg, m.keys.Quit):
+	case quitFromKey(msg, m.keys.Quit):
 		return m, tea.Quit
 
 	case key.Matches(msg, m.keys.Help):
@@ -827,7 +839,8 @@ func tickCmd() tea.Cmd {
 
 func (m *Model) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
-	case key.Matches(msg, m.keys.Quit):
+	// Do not bind "q" here — it must go to the text field (task titles can contain "q").
+	case msg.String() == "ctrl+c":
 		return m, tea.Quit
 
 	case key.Matches(msg, m.keys.Enter):
@@ -935,7 +948,7 @@ func (m Model) renderCreateTaskScreen() string {
 
 	title := m.styles.Title.Render("  New task")
 	inputLine := "  " + m.createInput.View()
-	hint := m.styles.Dim.Render("  enter save  ·  esc cancel  ·  q quit")
+	hint := m.styles.Dim.Render("  enter save  ·  esc cancel  ·  ctrl+c quit")
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		title,
