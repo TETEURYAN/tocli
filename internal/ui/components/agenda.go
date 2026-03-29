@@ -11,12 +11,14 @@ import (
 )
 
 type AgendaModel struct {
-	Events  []domain.Event
-	Cursor  int
-	Width   int
-	Height  int
-	Focused bool
-	styles  theme.Styles
+	Events       []domain.Event
+	DayTasks     []domain.Task
+	OverrideDate *time.Time
+	Cursor       int
+	Width        int
+	Height       int
+	Focused      bool
+	styles       theme.Styles
 }
 
 func NewAgendaModel(s theme.Styles) AgendaModel {
@@ -24,6 +26,13 @@ func NewAgendaModel(s theme.Styles) AgendaModel {
 }
 
 func (m AgendaModel) View() string {
+	if m.OverrideDate != nil {
+		return m.renderDayDetail()
+	}
+	return m.renderTodayAgenda()
+}
+
+func (m AgendaModel) renderTodayAgenda() string {
 	s := m.styles
 	now := time.Now()
 	dateStr := now.Format("Monday, Jan 2")
@@ -46,6 +55,47 @@ func (m AgendaModel) View() string {
 			loc := s.Location.Render(fmt.Sprintf("                  %s", evt.Location))
 			lines = append(lines, loc)
 		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func (m AgendaModel) renderDayDetail() string {
+	s := m.styles
+	dateStr := m.OverrideDate.Format("Monday, Jan 2, 2006")
+	title := s.Title.Render("  Day Detail")
+	subtitle := s.Subtitle.Render("  " + dateStr)
+
+	var lines []string
+	lines = append(lines, title, subtitle, "")
+
+	hasContent := false
+
+	if len(m.Events) > 0 {
+		hasContent = true
+		lines = append(lines, s.Dim.Render("  Events:"))
+		for _, evt := range m.Events {
+			lines = append(lines, m.renderEvent(evt, false))
+			if evt.Location != "" {
+				loc := s.Location.Render(fmt.Sprintf("                  %s", evt.Location))
+				lines = append(lines, loc)
+			}
+		}
+	}
+
+	if len(m.DayTasks) > 0 {
+		hasContent = true
+		if len(m.Events) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, s.Dim.Render("  Completed tasks:"))
+		for _, task := range m.DayTasks {
+			lines = append(lines, "  "+s.TaskDone.Render("✓ "+task.Title))
+		}
+	}
+
+	if !hasContent {
+		lines = append(lines, s.Dim.Render("  No events or tasks"))
 	}
 
 	return strings.Join(lines, "\n")
