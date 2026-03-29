@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"strings"
+	"time"
 	"tocli/internal/domain"
 )
 
@@ -56,4 +57,30 @@ func (uc *TaskUseCase) ListAllTasks() ([]domain.Task, error) {
 		all = append(all, tasks...)
 	}
 	return all, nil
+}
+
+func (uc *TaskUseCase) TasksCompletedOn(date time.Time) ([]domain.Task, error) {
+	lists, err := uc.repo.ListTaskLists()
+	if err != nil {
+		return nil, err
+	}
+
+	dateStr := date.Format("2006-01-02")
+	var result []domain.Task
+	for _, list := range lists {
+		tasks, err := uc.repo.ListTasks(list.ID)
+		if err != nil {
+			continue
+		}
+		for _, task := range tasks {
+			if task.Status == domain.TaskCompleted && task.CompletedAt != nil {
+				if task.CompletedAt.Format("2006-01-02") == dateStr {
+					task.ListName = list.Name
+					task.ListID = list.ID
+					result = append(result, task)
+				}
+			}
+		}
+	}
+	return result, nil
 }
