@@ -36,6 +36,20 @@ func bodyOuterLines(termHeight int) int {
 	return max(3, termHeight-2)
 }
 
+// clipToLines keeps the first maxLines lines. Bubble Tea drops excess lines from the top of the
+// view when the string is taller than the terminal, which hides the header — clipping the body
+// avoids overflowing the agreed layout (1 + bodyOuter + 1 rows).
+func clipToLines(s string, maxLines int) string {
+	if maxLines <= 0 {
+		return ""
+	}
+	lines := strings.Split(s, "\n")
+	if len(lines) <= maxLines {
+		return s
+	}
+	return strings.Join(lines[:maxLines], "\n")
+}
+
 func panelInnerHeight(outer int) int {
 	if outer <= 3 {
 		return 1
@@ -294,7 +308,7 @@ func (m Model) View() string {
 	}
 
 	if m.showHelp {
-		return m.renderHelp()
+		return clipToLines(m.renderHelp(), m.height)
 	}
 
 	if m.creatingTask {
@@ -302,7 +316,7 @@ func (m Model) View() string {
 	}
 
 	header := m.renderHeader()
-	body := m.renderBody()
+	body := clipToLines(m.renderBody(), bodyOuterLines(m.height))
 	status := m.renderStatusBar()
 
 	return lipgloss.JoinVertical(lipgloss.Left, header, body, status)
@@ -444,6 +458,7 @@ func (m Model) renderHeader() string {
 		Background(theme.T.Surface).
 		Width(m.width).
 		Padding(0, 1).
+		Inline(true).
 		Render(leftPart + gap + right)
 }
 
@@ -542,6 +557,7 @@ func (m Model) renderStatusBar() string {
 		Background(theme.T.Surface).
 		Width(m.width).
 		Padding(0, 1).
+		Inline(true).
 		Render(left + gap + help)
 }
 
@@ -783,7 +799,9 @@ func (m Model) renderCreateTaskScreen() string {
 	boxW := min(max(8, m.width-4), 78)
 	innerH := max(8, bodyH-2)
 	panel := m.styles.Panel.Width(boxW).Height(innerH).Render(content)
-	body := lipgloss.Place(m.width, bodyH, lipgloss.Center, lipgloss.Center, panel)
+	body := lipgloss.Place(m.width, bodyH, lipgloss.Center, lipgloss.Center, panel,
+		lipgloss.WithWhitespaceBackground(theme.T.Base))
+	body = clipToLines(body, bodyH)
 	status := m.renderCreateStatusBar()
 
 	return lipgloss.JoinVertical(lipgloss.Left, header, body, status)
@@ -805,6 +823,7 @@ func (m Model) renderCreateStatusBar() string {
 		Background(theme.T.Surface).
 		Width(m.width).
 		Padding(0, 1).
+		Inline(true).
 		Render(left + gap + help)
 }
 
