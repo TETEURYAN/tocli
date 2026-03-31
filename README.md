@@ -163,4 +163,4 @@ Contribuições são bem-vindas: issues e pull requests.
 
 ## 📄 Licença
 
-[MIT](https://choosealicense.com/licenses/mit/)
+[MIT](LICENSE)
