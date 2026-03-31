@@ -30,7 +30,8 @@ func mapGoogleTaskToDomain(t *tasks.Task, listID string) domain.Task {
 
 	if completed := ptrStr(t.Completed); completed != "" {
 		if parsed, err := time.Parse(time.RFC3339, completed); err == nil {
-			dt.CompletedAt = &parsed
+			local := parsed.Local()
+			dt.CompletedAt = &local
 		}
 	}
 
@@ -56,7 +57,7 @@ func mapGoogleEventToDomain(e *calendar.Event) (domain.Event, error) {
 		if err != nil {
 			return ev, err
 		}
-		ev.StartTime = t
+		ev.StartTime = t.Local()
 		ev.AllDay = false
 	} else if e.Start.Date != "" {
 		t, err := time.ParseInLocation("2006-01-02", e.Start.Date, loc)
@@ -71,7 +72,7 @@ func mapGoogleEventToDomain(e *calendar.Event) (domain.Event, error) {
 		if e.End.DateTime != "" {
 			t, err := time.Parse(time.RFC3339, e.End.DateTime)
 			if err == nil {
-				ev.EndTime = t
+				ev.EndTime = t.Local()
 			}
 		} else if e.End.Date != "" {
 			tEnd, err := time.ParseInLocation("2006-01-02", e.End.Date, loc)
