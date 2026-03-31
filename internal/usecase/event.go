@@ -26,3 +26,9 @@ func (uc *EventUseCase) GetWeekEvents() ([]domain.Event, error) {
 	end := start.Add(7 * 24 * time.Hour)
 	return uc.repo.GetEvents(start, end)
 }
+
+func (uc *EventUseCase) GetEventsForDate(date time.Time) ([]domain.Event, error) {
+	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	end := start.Add(24 * time.Hour)
+	return uc.repo.GetEvents(start, end)
+}

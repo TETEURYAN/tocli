@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type Pane int
@@ -30,10 +31,59 @@ const (
 // bodyOuterLines is vertical space for the main panel row (between header and status).
 func bodyOuterLines(termHeight int) int {
 	if termHeight <= 0 {
-		return 3
+		return 0
 	}
-	// One line header + one line status → remaining rows for the body.
-	return max(3, termHeight-2)
+	// One line header + one line status → remaining rows for the body (may be 0 on very short terminals).
+	return max(0, termHeight-2)
+}
+
+// clipToLines keeps the first maxLines lines. Bubble Tea drops excess lines from the top of the
+// view when the string is taller than the terminal, which hides the header — clipping the body
+// avoids overflowing the agreed layout (1 + bodyOuter + 1 rows).
+func clipToLines(s string, maxLines int) string {
+	if maxLines <= 0 {
+		return ""
+	}
+	lines := strings.Split(s, "\n")
+	if len(lines) <= maxLines {
+		return s
+	}
+	return strings.Join(lines[:maxLines], "\n")
+}
+
+// clampToWidth truncates each line to maxCells display width (ANSI-aware), matching Bubble Tea's
+// per-line truncation so content is not clipped unevenly on the right.
+func clampToWidth(s string, maxCells int) string {
+	if maxCells <= 0 {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	for i := range lines {
+		lines[i] = ansi.Truncate(lines[i], maxCells, "")
+	}
+	return strings.Join(lines, "\n")
+}
+
+// finalizeFrame enforces terminal w×h: clamp line widths, drop excess rows from the bottom, then
+// pad with full-width blank lines so the alt screen fills to the bottom without leftover paint.
+func (m Model) finalizeFrame(s string) string {
+	w, h := m.width, m.height
+	if w <= 0 {
+		return s
+	}
+	s = clampToWidth(s, w)
+	if h <= 0 {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	if len(lines) > h {
+		lines = lines[:h]
+	}
+	pad := strings.Repeat(" ", w)
+	for len(lines) < h {
+		lines = append(lines, pad)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func panelInnerHeight(outer int) int {
@@ -46,7 +96,20 @@ func panelInnerHeight(outer int) int {
 
 func splitStackOuterHeights(total int) (tasks, agenda, contrib, progress int) {
 	if total <= 0 {
-		return 1, 1, 1, 1
+		return 0, 0, 0, 0
+	}
+	// Fewer than four rows: give one row to the first N panes so the sum equals total (no forced 4-row minimum).
+	if total < 4 {
+		switch total {
+		case 1:
+			return 1, 0, 0, 0
+		case 2:
+			return 1, 1, 0, 0
+		case 3:
+			return 1, 1, 1, 0
+		default:
+			return 0, 0, 0, 0
+		}
 	}
 	if total <= 10 {
 		q := total / 4
@@ -64,7 +127,7 @@ func splitStackOuterHeights(total int) (tasks, agenda, contrib, progress int) {
 				progress++
 			}
 		}
-		return max(1, tasks), max(1, agenda), max(1, contrib), max(1, progress)
+		return tasks, agenda, contrib, progress
 	}
 	progress = min(8, max(3, total*13/100))
 	rest := total - progress
@@ -186,6 +249,12 @@ type contributionLoadedMsg struct {
 	data usecase.ContributionData
 }
 
+type dayDetailLoadedMsg struct {
+	date   time.Time
+	events []domain.Event
+	tasks  []domain.Task
+}
+
 type errMsg struct {
 	err error
 }
@@ -267,12 +336,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case eventsLoadedMsg:
-		m.agenda.Events = msg.events
+		if m.agenda.OverrideDate == nil {
+			m.agenda.Events = msg.events
+		}
 		return m, nil
 
 	case contributionLoadedMsg:
 		m.contribution.Data = msg.data
+		m.contribution.ClampCursor()
 		m.progress.Progress = m.progressUC.Calculate()
+		return m, nil
+
+	case dayDetailLoadedMsg:
+		if m.activePane == GraphPane && msg.date.Equal(m.contribution.CursorDate) {
+			m.agenda.OverrideDate = &msg.date
+			m.agenda.Events = msg.events
+			m.agenda.DayTasks = msg.tasks
+		}
 		return m, nil
 
 	case errMsg:
@@ -294,7 +374,7 @@ func (m Model) View() string {
 	}
 
 	if m.showHelp {
-		return m.renderHelp()
+		return m.finalizeFrame(clipToLines(m.renderHelp(), m.height))
 	}
 
 	if m.creatingTask {
@@ -302,15 +382,27 @@ func (m Model) View() string {
 	}
 
 	header := m.renderHeader()
-	body := m.renderBody()
+	body := clipToLines(m.renderBody(), bodyOuterLines(m.height))
 	status := m.renderStatusBar()
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, body, status)
+	return m.finalizeFrame(lipgloss.JoinVertical(lipgloss.Left, header, body, status))
+}
+
+func quitFromKey(msg tea.KeyMsg, quit key.Binding) bool {
+	if key.Matches(msg, quit) {
+		return true
+	}
+	// Bubble Tea v1 may emit rune keys where bubbles' matcher misses "q".
+	if msg.Type == tea.KeyRunes && len(msg.Runes) == 1 {
+		r := msg.Runes[0]
+		return r == 'q' || r == 'Q'
+	}
+	return false
 }
 
 func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
-	case key.Matches(msg, m.keys.Quit):
+	case quitFromKey(msg, m.keys.Quit):
 		return m, tea.Quit
 
 	case key.Matches(msg, m.keys.Help):
@@ -318,13 +410,27 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case key.Matches(msg, m.keys.Tab):
+		prev := m.activePane
 		m.activePane = (m.activePane + 1) % paneCount
 		m.updateFocus()
+		if m.activePane == GraphPane {
+			return m, m.loadDayDetail(m.contribution.CursorDate)
+		}
+		if prev == GraphPane {
+			return m, m.loadEvents()
+		}
 		return m, nil
 
 	case key.Matches(msg, m.keys.ShiftTab):
+		prev := m.activePane
 		m.activePane = (m.activePane - 1 + paneCount) % paneCount
 		m.updateFocus()
+		if m.activePane == GraphPane {
+			return m, m.loadDayDetail(m.contribution.CursorDate)
+		}
+		if prev == GraphPane {
+			return m, m.loadEvents()
+		}
 		return m, nil
 
 	case key.Matches(msg, m.keys.Refresh):
@@ -343,6 +449,9 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.tasks.MoveUp()
 		case AgendaPane:
 			m.agenda.MoveUp()
+		case GraphPane:
+			m.contribution.MoveUp()
+			return m, m.loadDayDetail(m.contribution.CursorDate)
 		}
 		return m, nil
 
@@ -352,6 +461,23 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.tasks.MoveDown()
 		case AgendaPane:
 			m.agenda.MoveDown()
+		case GraphPane:
+			m.contribution.MoveDown()
+			return m, m.loadDayDetail(m.contribution.CursorDate)
+		}
+		return m, nil
+
+	case key.Matches(msg, m.keys.Left):
+		if m.activePane == GraphPane {
+			m.contribution.MoveLeft()
+			return m, m.loadDayDetail(m.contribution.CursorDate)
+		}
+		return m, nil
+
+	case key.Matches(msg, m.keys.Right):
+		if m.activePane == GraphPane {
+			m.contribution.MoveRight()
+			return m, m.loadDayDetail(m.contribution.CursorDate)
 		}
 		return m, nil
 
@@ -369,6 +495,10 @@ func (m *Model) updateFocus() {
 	m.tasks.Focused = m.activePane == TaskPane
 	m.agenda.Focused = m.activePane == AgendaPane
 	m.contribution.Focused = m.activePane == GraphPane
+	if m.activePane != GraphPane && m.agenda.OverrideDate != nil {
+		m.agenda.OverrideDate = nil
+		m.agenda.DayTasks = nil
+	}
 }
 
 func (m *Model) updateLayout() {
@@ -382,7 +512,7 @@ func (m *Model) updateLayout() {
 		m.tasks.Height = panelInnerHeight(tOut)
 		m.agenda.Width = innerW
 		m.agenda.Height = panelInnerHeight(aOut)
-		m.contribution.Width = innerW
+		m.contribution.Width = max(8, fullW-6)
 		m.contribution.Height = panelInnerHeight(cOut)
 		m.progress.Width = innerW
 		m.progress.Height = panelInnerHeight(pOut)
@@ -401,7 +531,7 @@ func (m *Model) updateLayout() {
 	m.agenda.Width = max(8, rightInner)
 	m.agenda.Height = agH
 
-	m.contribution.Width = max(8, rightInner)
+	m.contribution.Width = max(8, rightOuter-6)
 	m.contribution.Height = coH
 
 	m.progress.Width = max(8, rightInner)
@@ -444,6 +574,7 @@ func (m Model) renderHeader() string {
 		Background(theme.T.Surface).
 		Width(m.width).
 		Padding(0, 1).
+		Inline(true).
 		Render(leftPart + gap + right)
 }
 
@@ -456,17 +587,34 @@ func (m Model) renderBody() string {
 }
 
 func (m Model) renderBodyStacked(bodyOuter int) string {
+	if bodyOuter <= 0 {
+		return ""
+	}
 	tOut, aOut, cOut, pOut := splitStackOuterHeights(bodyOuter)
 	w := m.width
-	return lipgloss.JoinVertical(lipgloss.Left,
-		m.renderPanel(m.tasks.View(), w, tOut, m.activePane == TaskPane),
-		m.renderPanel(m.agenda.View(), w, aOut, m.activePane == AgendaPane),
-		m.renderPanel(m.contribution.View(), w, cOut, m.activePane == GraphPane),
-		m.renderPanel(m.progress.View(), w, pOut, m.activePane == GraphPane),
-	)
+	parts := make([]string, 0, 4)
+	if tOut > 0 {
+		parts = append(parts, m.renderPanel(m.tasks.View(), w, tOut, m.activePane == TaskPane))
+	}
+	if aOut > 0 {
+		parts = append(parts, m.renderPanel(m.agenda.View(), w, aOut, m.activePane == AgendaPane))
+	}
+	if cOut > 0 {
+		parts = append(parts, m.renderPanel(m.contribution.View(), w, cOut, m.activePane == GraphPane))
+	}
+	if pOut > 0 {
+		parts = append(parts, m.renderPanel(m.progress.View(), w, pOut, m.activePane == GraphPane))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 func (m Model) renderBodyWide(bodyOuter int) string {
+	if bodyOuter <= 0 {
+		return ""
+	}
 	leftOuter, rightOuter := splitColumnWidths(m.width)
 
 	leftPanel := m.renderPanel(m.tasks.View(), leftOuter, bodyOuter, m.activePane == TaskPane)
@@ -487,6 +635,9 @@ func (m Model) renderBodyWide(bodyOuter int) string {
 }
 
 func (m Model) renderPanel(content string, width, height int, active bool) string {
+	if width <= 0 || height <= 0 {
+		return ""
+	}
 	style := m.styles.Panel
 	if active {
 		style = m.styles.PanelActive
@@ -508,7 +659,24 @@ func (m Model) renderStatusBar() string {
 	}
 
 	var helpKeys []struct{ key, desc string }
-	if m.width < 92 {
+	switch {
+	case m.activePane == GraphPane && m.width < 92:
+		helpKeys = []struct{ key, desc string }{
+			{"←→↑↓", "navigate"},
+			{"tab", "pane"},
+			{"?", "help"},
+			{"q", "quit"},
+		}
+	case m.activePane == GraphPane:
+		helpKeys = []struct{ key, desc string }{
+			{"←→", "week"},
+			{"↑↓", "day"},
+			{"tab", "switch pane"},
+			{"r", "refresh"},
+			{"?", "help"},
+			{"q", "quit"},
+		}
+	case m.width < 92:
 		helpKeys = []struct{ key, desc string }{
 			{"tab", "pane"},
 			{"n", "new"},
@@ -516,7 +684,7 @@ func (m Model) renderStatusBar() string {
 			{"?", "help"},
 			{"q", "quit"},
 		}
-	} else {
+	default:
 		helpKeys = []struct{ key, desc string }{
 			{"↑↓/jk", "navigate"},
 			{"tab", "switch pane"},
@@ -542,6 +710,7 @@ func (m Model) renderStatusBar() string {
 		Background(theme.T.Surface).
 		Width(m.width).
 		Padding(0, 1).
+		Inline(true).
 		Render(left + gap + help)
 }
 
@@ -554,6 +723,8 @@ func (m Model) renderHelp() string {
 	bindings := []struct{ key, desc string }{
 		{"j / ↓", "Move down"},
 		{"k / ↑", "Move up"},
+		{"← / h", "Previous week (graph)"},
+		{"→ / l", "Next week (graph)"},
 		{"Tab", "Next pane"},
 		{"Shift+Tab", "Previous pane"},
 		{"Space / Enter", "Complete or reopen task"},
@@ -603,6 +774,14 @@ func (m Model) loadContribution() tea.Cmd {
 	return func() tea.Msg {
 		data := m.contribUC.Generate(time.Now().Year())
 		return contributionLoadedMsg{data: data}
+	}
+}
+
+func (m Model) loadDayDetail(date time.Time) tea.Cmd {
+	return func() tea.Msg {
+		events, _ := m.eventUC.GetEventsForDate(date)
+		tasks, _ := m.taskUC.TasksCompletedOn(date)
+		return dayDetailLoadedMsg{date: date, events: events, tasks: tasks}
 	}
 }
 
@@ -660,7 +839,8 @@ func tickCmd() tea.Cmd {
 
 func (m *Model) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
-	case key.Matches(msg, m.keys.Quit):
+	// Do not bind "q" here — it must go to the text field (task titles can contain "q").
+	case msg.String() == "ctrl+c":
 		return m, tea.Quit
 
 	case key.Matches(msg, m.keys.Enter):
@@ -768,7 +948,7 @@ func (m Model) renderCreateTaskScreen() string {
 
 	title := m.styles.Title.Render("  New task")
 	inputLine := "  " + m.createInput.View()
-	hint := m.styles.Dim.Render("  enter save  ·  esc cancel  ·  q quit")
+	hint := m.styles.Dim.Render("  enter save  ·  esc cancel  ·  ctrl+c quit")
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		title,
@@ -780,13 +960,23 @@ func (m Model) renderCreateTaskScreen() string {
 		hint,
 	)
 
+	if bodyH <= 0 {
+		status := m.renderCreateStatusBar()
+		return m.finalizeFrame(lipgloss.JoinVertical(lipgloss.Left, header, "", status))
+	}
+
 	boxW := min(max(8, m.width-4), 78)
-	innerH := max(8, bodyH-2)
+	innerH := max(1, panelInnerHeight(bodyH))
+	if innerH > bodyH {
+		innerH = max(1, bodyH)
+	}
 	panel := m.styles.Panel.Width(boxW).Height(innerH).Render(content)
-	body := lipgloss.Place(m.width, bodyH, lipgloss.Center, lipgloss.Center, panel)
+	body := lipgloss.Place(m.width, bodyH, lipgloss.Center, lipgloss.Center, panel,
+		lipgloss.WithWhitespaceBackground(theme.T.Base))
+	body = clipToLines(body, bodyH)
 	status := m.renderCreateStatusBar()
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, body, status)
+	return m.finalizeFrame(lipgloss.JoinVertical(lipgloss.Left, header, body, status))
 }
 
 func (m Model) renderCreateStatusBar() string {
@@ -805,6 +995,7 @@ func (m Model) renderCreateStatusBar() string {
 		Background(theme.T.Surface).
 		Width(m.width).
 		Padding(0, 1).
+		Inline(true).
 		Render(left + gap + help)
 }
 

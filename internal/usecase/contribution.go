@@ -8,10 +8,11 @@ import (
 const WeeksInYear = 53
 
 type ContributionData struct {
-	Weeks    [WeeksInYear][7]int
-	MaxCount int
-	Year     int
-	Total    int
+	Weeks     [WeeksInYear][7]int
+	DayCounts map[string]int
+	MaxCount  int
+	Year      int
+	Total     int
 }
 
 type ContributionUseCase struct {
@@ -23,14 +24,15 @@ func NewContributionUseCase(repo domain.TaskRepository) *ContributionUseCase {
 }
 
 func (uc *ContributionUseCase) Generate(year int) ContributionData {
-	data := ContributionData{Year: year}
+	data := ContributionData{
+		Year:      year,
+		DayCounts: make(map[string]int),
+	}
 
 	lists, err := uc.repo.ListTaskLists()
 	if err != nil {
 		return data
 	}
-
-	completedByDay := make(map[string]int)
 
 	for _, list := range lists {
 		tasks, err := uc.repo.ListTasks(list.ID)
@@ -41,7 +43,7 @@ func (uc *ContributionUseCase) Generate(year int) ContributionData {
 			if task.Status == domain.TaskCompleted && task.CompletedAt != nil {
 				if task.CompletedAt.Year() == year {
 					key := task.CompletedAt.Format("2006-01-02")
-					completedByDay[key]++
+					data.DayCounts[key]++
 				}
 			}
 		}
@@ -65,7 +67,7 @@ func (uc *ContributionUseCase) Generate(year int) ContributionData {
 		}
 
 		key := date.Format("2006-01-02")
-		count := completedByDay[key]
+		count := data.DayCounts[key]
 		data.Weeks[week][weekday] = count
 		data.Total += count
 

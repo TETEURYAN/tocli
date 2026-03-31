@@ -12,19 +12,27 @@ import (
 
 type AgendaModel struct {
 	Events       []domain.Event
+	DayTasks     []domain.Task
+	OverrideDate *time.Time
 	Cursor       int
 	Width        int
 	Height       int
 	Focused      bool
 	styles       theme.Styles
-	scrollOffset int
 }
 
 func NewAgendaModel(s theme.Styles) AgendaModel {
 	return AgendaModel{styles: s}
 }
 
-func (m *AgendaModel) View() string {
+func (m AgendaModel) View() string {
+	if m.OverrideDate != nil {
+		return m.renderDayDetail()
+	}
+	return m.renderTodayAgenda()
+}
+
+func (m AgendaModel) renderTodayAgenda() string {
 	s := m.styles
 	now := time.Now()
 	dateStr := now.Format("Monday, Jan 2")
@@ -36,84 +44,58 @@ func (m *AgendaModel) View() string {
 		return lipgloss.JoinVertical(lipgloss.Left, title, subtitle, "", content)
 	}
 
-	headerLines := 3
-	scrollHint := 0
-	contentHeight := m.Height - headerLines
-	if contentHeight < 1 {
-		contentHeight = 1
-	}
+	var lines []string
+	lines = append(lines, title, subtitle, "")
 
-	type row struct {
-		eventIdx int
-		isLoc    bool
-	}
-	var rows []row
 	for i, evt := range m.Events {
-		rows = append(rows, row{eventIdx: i, isLoc: false})
+		line := m.renderEvent(evt, i == m.Cursor)
+		lines = append(lines, line)
+
 		if evt.Location != "" {
-			rows = append(rows, row{eventIdx: i, isLoc: true})
+			loc := s.Location.Render(fmt.Sprintf("                  %s", evt.Location))
+			lines = append(lines, loc)
 		}
 	}
 
-	selStart := -1
-	selEnd := -1
-	for i, r := range rows {
-		if r.eventIdx != m.Cursor {
-			continue
-		}
-		if selStart < 0 {
-			selStart = i
-		}
-		selEnd = i
-	}
-	if selStart < 0 {
-		selStart, selEnd = 0, 0
-	}
+	return strings.Join(lines, "\n")
+}
 
-	if len(rows) > contentHeight {
-		scrollHint = 1
-		contentHeight = m.Height - headerLines - scrollHint
-		if contentHeight < 1 {
-			contentHeight = 1
-		}
-	}
-
-	off := m.scrollOffset
-	if selStart < off {
-		off = selStart
-	}
-	if selEnd >= off+contentHeight {
-		off = selEnd - contentHeight + 1
-	}
-	if off < 0 {
-		off = 0
-	}
-	if off > 0 && off > len(rows)-contentHeight {
-		off = max(0, len(rows)-contentHeight)
-	}
-	m.scrollOffset = off
+func (m AgendaModel) renderDayDetail() string {
+	s := m.styles
+	dateStr := m.OverrideDate.Format("Monday, Jan 2, 2006")
+	title := s.Title.Render("  Day Detail")
+	subtitle := s.Subtitle.Render("  " + dateStr)
 
 	var lines []string
 	lines = append(lines, title, subtitle, "")
 
-	end := off + contentHeight
-	if end > len(rows) {
-		end = len(rows)
-	}
-	for i := off; i < end; i++ {
-		r := rows[i]
-		evt := m.Events[r.eventIdx]
-		if r.isLoc {
-			loc := s.Location.Render(fmt.Sprintf("                  %s", evt.Location))
-			lines = append(lines, loc)
-			continue
+	hasContent := false
+
+	if len(m.Events) > 0 {
+		hasContent = true
+		lines = append(lines, s.Dim.Render("  Events:"))
+		for _, evt := range m.Events {
+			lines = append(lines, m.renderEvent(evt, false))
+			if evt.Location != "" {
+				loc := s.Location.Render(fmt.Sprintf("                  %s", evt.Location))
+				lines = append(lines, loc)
+			}
 		}
-		lines = append(lines, m.renderEvent(evt, r.eventIdx == m.Cursor))
 	}
 
-	if scrollHint > 0 {
-		info := s.Dim.Render(fmt.Sprintf("  %d-%d/%d", off+1, end, len(rows)))
-		lines = append(lines, "", info)
+	if len(m.DayTasks) > 0 {
+		hasContent = true
+		if len(m.Events) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, s.Dim.Render("  Completed tasks:"))
+		for _, task := range m.DayTasks {
+			lines = append(lines, "  "+s.TaskDone.Render("✓ "+task.Title))
+		}
+	}
+
+	if !hasContent {
+		lines = append(lines, s.Dim.Render("  No events or tasks"))
 	}
 
 	return strings.Join(lines, "\n")
