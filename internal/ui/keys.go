@@ -15,8 +15,9 @@ type KeyMap struct {
 	Help      key.Binding
 	Quit      key.Binding
 	NewTask   key.Binding
-	PrevList  key.Binding
-	NextList  key.Binding
+	PrevList   key.Binding
+	NextList   key.Binding
+	DeleteTask key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -76,6 +77,10 @@ func DefaultKeyMap() KeyMap {
 		NextList: key.NewBinding(
 			key.WithKeys("]"),
 			key.WithHelp("]", "next list"),
+		),
+		DeleteTask: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "delete task"),
 		),
 	}
 }
