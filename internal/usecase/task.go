@@ -30,12 +30,35 @@ func (uc *TaskUseCase) ReopenTask(taskID, listID string) error {
 	return uc.repo.ReopenTask(taskID, listID)
 }
 
-func (uc *TaskUseCase) CreateTask(listID, title string) (domain.Task, error) {
+func (uc *TaskUseCase) CreateTask(listID, title string, due *time.Time) (domain.Task, error) {
 	t := strings.TrimSpace(title)
 	if t == "" {
 		return domain.Task{}, domain.ErrEmptyTaskTitle
 	}
-	return uc.repo.CreateTask(listID, t)
+	return uc.repo.CreateTask(listID, t, due)
+}
+
+func (uc *TaskUseCase) DeleteTask(taskID, listID string) error {
+	return uc.repo.DeleteTask(taskID, listID)
+}
+
+// ParseOptionalTaskDue parses optional due text for new tasks. Empty string returns (nil, nil).
+func ParseOptionalTaskDue(s string) (*time.Time, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, nil
+	}
+	layouts := []string{
+		"2006-01-02 15:04",
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	}
+	for _, layout := range layouts {
+		if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
+			return &t, nil
+		}
+	}
+	return nil, domain.ErrInvalidDue
 }
 
 func (uc *TaskUseCase) ListAllTasks() ([]domain.Task, error) {

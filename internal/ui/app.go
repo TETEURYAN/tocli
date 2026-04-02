@@ -225,10 +225,13 @@ type Model struct {
 	err        error
 	showHelp   bool
 
-	creatingTask    bool
-	createInput     textinput.Model
-	taskLists       []domain.TaskList
-	createListIndex int
+	creatingTask            bool
+	createInput             textinput.Model
+	dueInput                textinput.Model
+	createDueFocused        bool
+	awaitingDeleteConfirm   bool
+	taskLists               []domain.TaskList
+	createListIndex         int
 }
 
 type tasksLoadedMsg struct {
@@ -272,6 +275,10 @@ func NewModel(
 	ti.Placeholder = "What needs doing?"
 	ti.CharLimit = 280
 	ti.Width = 40
+	dueTi := textinput.New()
+	dueTi.Placeholder = "Due: YYYY-MM-DD or YYYY-MM-DD HH:MM (optional)"
+	dueTi.CharLimit = 32
+	dueTi.Width = 40
 	return Model{
 		tasks:        components.NewTaskListModel(s),
 		agenda:       components.NewAgendaModel(s),
@@ -286,6 +293,7 @@ func NewModel(
 		activePane:   TaskPane,
 		loading:      true,
 		createInput:  ti,
+		dueInput:     dueTi,
 	}
 }
 
@@ -308,12 +316,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			w := min(64, max(24, m.width-14))
 			if w > 0 {
 				m.createInput.Width = w
+				m.dueInput.Width = w
 			}
 		}
 		m.updateLayout()
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.awaitingDeleteConfirm {
+			return m.handleDeleteConfirmKey(msg)
+		}
 		if m.creatingTask {
 			return m.handleCreateKey(msg)
 		}
@@ -324,6 +336,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tasks.Tasks = filterActiveTasks(msg.tasks)
 		m.taskLists = msg.lists
 		m.clampCreateListIndex()
+		m.clampTaskCursor()
 		return m, nil
 
 	case createTaskDoneMsg:
@@ -331,8 +344,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.taskLists = msg.lists
 		m.clampCreateListIndex()
 		m.creatingTask = false
+		m.createDueFocused = false
 		m.createInput.Blur()
 		m.createInput.SetValue("")
+		m.dueInput.Blur()
+		m.dueInput.SetValue("")
+		m.clampTaskCursor()
 		return m, nil
 
 	case eventsLoadedMsg:
@@ -440,6 +457,13 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.NewTask):
 		if m.activePane == TaskPane {
 			m.startCreateTask()
+		}
+		return m, nil
+
+	case key.Matches(msg, m.keys.DeleteTask):
+		if m.activePane == TaskPane && m.tasks.SelectedTask() != nil {
+			m.awaitingDeleteConfirm = true
+			m.err = nil
 		}
 		return m, nil
 
@@ -648,6 +672,22 @@ func (m Model) renderPanel(content string, width, height int, active bool) strin
 func (m Model) renderStatusBar() string {
 	var parts []string
 
+	if m.awaitingDeleteConfirm {
+		parts = append(parts,
+			lipgloss.NewStyle().Foreground(theme.T.Warning).Render(" Delete this task? "),
+			m.styles.HelpKey.Render("y")+" "+m.styles.HelpDesc.Render("confirm")+"  "+
+				m.styles.HelpKey.Render("n")+" "+m.styles.HelpDesc.Render("cancel"),
+		)
+		help := strings.Join(parts, "")
+		gap := strings.Repeat(" ", max(0, m.width-lipgloss.Width(help)-2))
+		return lipgloss.NewStyle().
+			Background(theme.T.Surface).
+			Width(m.width).
+			Padding(0, 1).
+			Inline(true).
+			Render(help + gap)
+	}
+
 	paneName := [...]string{"tasks", "agenda", "graph"}[m.activePane]
 	paneInfo := m.styles.HelpKey.Render(fmt.Sprintf(" %s ", paneName))
 	parts = append(parts, paneInfo)
@@ -680,6 +720,7 @@ func (m Model) renderStatusBar() string {
 		helpKeys = []struct{ key, desc string }{
 			{"tab", "pane"},
 			{"n", "new"},
+			{"d", "del"},
 			{"r", "refresh"},
 			{"?", "help"},
 			{"q", "quit"},
@@ -690,6 +731,7 @@ func (m Model) renderStatusBar() string {
 			{"tab", "switch pane"},
 			{"space", "done/reopen"},
 			{"n", "new task"},
+			{"d", "delete"},
 			{"r", "refresh"},
 			{"?", "help"},
 			{"q", "quit"},
@@ -728,7 +770,8 @@ func (m Model) renderHelp() string {
 		{"Tab", "Next pane"},
 		{"Shift+Tab", "Previous pane"},
 		{"Space / Enter", "Complete or reopen task"},
-		{"n", "New task (tasks pane)"},
+		{"n", "New task (tasks pane; optional due)"},
+		{"d then y/n", "Delete task (confirm)"},
 		{"r", "Refresh data"},
 		{"?", "Toggle help"},
 		{"q / Ctrl+C", "Quit"},
@@ -831,6 +874,44 @@ func (m Model) toggleTask() tea.Cmd {
 	return nil
 }
 
+func (m *Model) deleteSelectedTask() tea.Cmd {
+	task := m.tasks.SelectedTask()
+	if task == nil {
+		return nil
+	}
+	taskID, listID := task.ID, task.ListID
+	return func() tea.Msg {
+		if err := m.taskUC.DeleteTask(taskID, listID); err != nil {
+			return errMsg{err: err}
+		}
+		lists, err := m.taskUC.ListTaskLists()
+		if err != nil {
+			return errMsg{err: err}
+		}
+		tasks, err := m.taskUC.ListAllTasks()
+		if err != nil {
+			return errMsg{err: err}
+		}
+		return tasksLoadedMsg{tasks: tasks, lists: lists}
+	}
+}
+
+func (m *Model) handleDeleteConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if quitFromKey(msg, m.keys.Quit) {
+		return m, tea.Quit
+	}
+	switch msg.String() {
+	case "y", "Y":
+		m.awaitingDeleteConfirm = false
+		return m, m.deleteSelectedTask()
+	case "n", "N", "esc":
+		m.awaitingDeleteConfirm = false
+		return m, nil
+	default:
+		return m, nil
+	}
+}
+
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Minute, func(t time.Time) tea.Msg {
 		return tickMsg(t)
@@ -845,6 +926,18 @@ func (m *Model) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case key.Matches(msg, m.keys.Enter):
 		return m, m.submitNewTask()
+
+	case key.Matches(msg, m.keys.Tab):
+		if m.createDueFocused {
+			m.createDueFocused = false
+			m.dueInput.Blur()
+			m.createInput.Focus()
+		} else {
+			m.createDueFocused = true
+			m.createInput.Blur()
+			m.dueInput.Focus()
+		}
+		return m, nil
 
 	case msg.String() == "esc":
 		m.cancelCreateTask()
@@ -864,7 +957,11 @@ func (m *Model) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	default:
 		var cmd tea.Cmd
-		m.createInput, cmd = m.createInput.Update(msg)
+		if m.createDueFocused {
+			m.dueInput, cmd = m.dueInput.Update(msg)
+		} else {
+			m.createInput, cmd = m.createInput.Update(msg)
+		}
 		return m, cmd
 	}
 }
@@ -872,10 +969,13 @@ func (m *Model) handleCreateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *Model) startCreateTask() {
 	m.creatingTask = true
 	m.err = nil
+	m.createDueFocused = false
 	m.createInput.SetValue("")
+	m.dueInput.SetValue("")
 	w := min(64, max(24, m.width-14))
 	if w > 0 {
 		m.createInput.Width = w
+		m.dueInput.Width = w
 	}
 	m.createListIndex = 0
 	if sel := m.tasks.SelectedTask(); sel != nil {
@@ -887,13 +987,17 @@ func (m *Model) startCreateTask() {
 		}
 	}
 	m.clampCreateListIndex()
+	m.dueInput.Blur()
 	m.createInput.Focus()
 }
 
 func (m *Model) cancelCreateTask() {
 	m.creatingTask = false
+	m.createDueFocused = false
 	m.createInput.Blur()
 	m.createInput.SetValue("")
+	m.dueInput.Blur()
+	m.dueInput.SetValue("")
 	m.err = nil
 }
 
@@ -907,16 +1011,37 @@ func (m *Model) clampCreateListIndex() {
 	}
 }
 
+func (m *Model) clampTaskCursor() {
+	if len(m.tasks.Tasks) == 0 {
+		m.tasks.Cursor = 0
+		return
+	}
+	if m.tasks.Cursor >= len(m.tasks.Tasks) {
+		m.tasks.Cursor = len(m.tasks.Tasks) - 1
+	}
+}
+
 func (m Model) submitNewTask() tea.Cmd {
 	if len(m.taskLists) == 0 {
 		return func() tea.Msg {
 			return errMsg{err: fmt.Errorf("no task lists available")}
 		}
 	}
+	due, err := usecase.ParseOptionalTaskDue(m.dueInput.Value())
+	if err != nil {
+		return func() tea.Msg {
+			return errMsg{err: err}
+		}
+	}
+	var duePtr *time.Time
+	if due != nil {
+		d := *due
+		duePtr = &d
+	}
 	listID := m.taskLists[m.createListIndex].ID
 	title := m.createInput.Value()
 	return func() tea.Msg {
-		_, err := m.taskUC.CreateTask(listID, title)
+		_, err := m.taskUC.CreateTask(listID, title, duePtr)
 		if err != nil {
 			return errMsg{err: err}
 		}
@@ -948,7 +1073,8 @@ func (m Model) renderCreateTaskScreen() string {
 
 	title := m.styles.Title.Render("  New task")
 	inputLine := "  " + m.createInput.View()
-	hint := m.styles.Dim.Render("  enter save  ·  esc cancel  ·  ctrl+c quit")
+	dueLine := "  " + m.dueInput.View()
+	hint := m.styles.Dim.Render("  enter save  ·  tab title/due  ·  esc cancel  ·  ctrl+c quit")
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		title,
@@ -956,6 +1082,8 @@ func (m Model) renderCreateTaskScreen() string {
 		listLine,
 		"",
 		inputLine,
+		"",
+		dueLine,
 		"",
 		hint,
 	)
@@ -987,6 +1115,7 @@ func (m Model) renderCreateStatusBar() string {
 	helpParts := []string{
 		m.styles.HelpKey.Render("esc") + " " + m.styles.HelpDesc.Render("cancel"),
 		m.styles.HelpKey.Render("enter") + " " + m.styles.HelpDesc.Render("save"),
+		m.styles.HelpKey.Render("tab") + " " + m.styles.HelpDesc.Render("field"),
 		m.styles.HelpKey.Render("[ ]") + " " + m.styles.HelpDesc.Render("list"),
 	}
 	help := strings.Join(helpParts, "  ")

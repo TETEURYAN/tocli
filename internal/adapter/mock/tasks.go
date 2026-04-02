@@ -70,7 +70,7 @@ func (r *TaskRepo) ReopenTask(taskID, listID string) error {
 	return fmt.Errorf("task %s not found", taskID)
 }
 
-func (r *TaskRepo) CreateTask(listID, title string) (domain.Task, error) {
+func (r *TaskRepo) CreateTask(listID, title string, due *time.Time) (domain.Task, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
 		return domain.Task{}, domain.ErrEmptyTaskTitle
@@ -84,6 +84,7 @@ func (r *TaskRepo) CreateTask(listID, title string) (domain.Task, error) {
 		Title:    title,
 		Status:   domain.TaskOpen,
 		ListID:   listID,
+		DueDate:  due,
 	}
 	for _, list := range r.lists {
 		if list.ID == listID {
@@ -93,6 +94,20 @@ func (r *TaskRepo) CreateTask(listID, title string) (domain.Task, error) {
 	}
 	r.tasks[listID] = append(r.tasks[listID], task)
 	return task, nil
+}
+
+func (r *TaskRepo) DeleteTask(taskID, listID string) error {
+	tasks, ok := r.tasks[listID]
+	if !ok {
+		return fmt.Errorf("list %s not found", listID)
+	}
+	for i := range tasks {
+		if tasks[i].ID == taskID {
+			r.tasks[listID] = append(tasks[:i], tasks[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("task %s not found", taskID)
 }
 
 func (r *TaskRepo) seed() {
