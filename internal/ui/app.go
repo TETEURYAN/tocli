@@ -276,7 +276,7 @@ func NewModel(
 	ti.CharLimit = 280
 	ti.Width = 40
 	dueTi := textinput.New()
-	dueTi.Placeholder = "Due: YYYY-MM-DD or YYYY-MM-DD HH:MM (optional)"
+	dueTi.Placeholder = "Date: DD-MM-YYYY or DD-MM-YYYY HH:MM (optional)"
 	dueTi.CharLimit = 32
 	dueTi.Width = 40
 	return Model{

@@ -42,16 +42,17 @@ func (uc *TaskUseCase) DeleteTask(taskID, listID string) error {
 	return uc.repo.DeleteTask(taskID, listID)
 }
 
-// ParseOptionalTaskDue parses optional due text for new tasks. Empty string returns (nil, nil).
+// ParseOptionalTaskDue parses optional due text (Brazilian order: dia-mês-ano). Empty returns (nil, nil).
 func ParseOptionalTaskDue(s string) (*time.Time, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return nil, nil
 	}
+	// DD-MM-YYYY, then optional hora (24h).
 	layouts := []string{
-		"2006-01-02 15:04",
-		"2006-01-02 15:04:05",
-		"2006-01-02",
+		"02-01-2006 15:04",
+		"02-01-2006 15:04:05",
+		"02-01-2006",
 	}
 	for _, layout := range layouts {
 		if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
