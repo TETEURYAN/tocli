@@ -5,7 +5,10 @@ import (
 	"time"
 )
 
-var ErrEmptyTaskTitle = errors.New("task title cannot be empty")
+var (
+	ErrEmptyTaskTitle = errors.New("task title cannot be empty")
+	ErrInvalidDue     = errors.New("data inválida: use DD-MM-YYYY ou DD-MM-YYYY HH:MM (horário local)")
+)
 
 type TaskStatus int
 

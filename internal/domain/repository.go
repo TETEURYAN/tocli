@@ -7,7 +7,8 @@ type TaskRepository interface {
 	ListTasks(listID string) ([]Task, error)
 	CompleteTask(taskID, listID string) error
 	ReopenTask(taskID, listID string) error
-	CreateTask(listID, title string) (Task, error)
+	CreateTask(listID, title string, due *time.Time) (Task, error)
+	DeleteTask(taskID, listID string) error
 }
 
 type EventRepository interface {

@@ -5,6 +5,7 @@ import (
 	"tocli/internal/ui/theme"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -92,9 +93,19 @@ func (m TaskListModel) renderTask(task domain.Task, selected bool) string {
 	s := m.styles
 	accent := theme.ListCategoryAccent(task.ListName)
 	mark := theme.ListCategoryMarker(task.ListName)
-	// Cursor + colored marker + space + title.
+	// Cursor + colored marker + space + title (+ optional due).
 	const markCells = 2
-	maxWidth := m.Width - 10 - markCells
+	dueSuffix := ""
+	if task.DueDate != nil {
+		d := task.DueDate.In(time.Local)
+		if d.Hour() == 0 && d.Minute() == 0 && d.Second() == 0 && d.Nanosecond() == 0 {
+			dueSuffix = "  · " + d.Format("Jan 2")
+		} else {
+			dueSuffix = "  · " + d.Format("Jan 2 15:04")
+		}
+	}
+	reserve := 10 + markCells + len([]rune(dueSuffix))
+	maxWidth := m.Width - reserve
 	if maxWidth < 8 {
 		maxWidth = 8
 	}
@@ -141,7 +152,11 @@ func (m TaskListModel) renderTask(task domain.Task, selected bool) string {
 		cursor = "▸ "
 	}
 
-	return cursor + markStyled + textStyle.Render(title)
+	line := cursor + markStyled + textStyle.Render(title)
+	if dueSuffix != "" {
+		line += s.Dim.Render(dueSuffix)
+	}
+	return line
 }
 
 func (m *TaskListModel) MoveUp() {

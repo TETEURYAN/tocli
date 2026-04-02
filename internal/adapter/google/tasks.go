@@ -2,6 +2,7 @@ package google
 
 import (
 	"context"
+	"time"
 	"tocli/internal/domain"
 
 	tasks "google.golang.org/api/tasks/v1"
@@ -76,11 +77,19 @@ func (r *TaskRepo) ReopenTask(taskID, listID string) error {
 	return wrapAPIError("reopen task", err)
 }
 
-func (r *TaskRepo) CreateTask(listID, title string) (domain.Task, error) {
+func (r *TaskRepo) CreateTask(listID, title string, due *time.Time) (domain.Task, error) {
 	newTask := &tasks.Task{Title: title}
+	if due != nil {
+		newTask.Due = due.UTC().Format(time.RFC3339)
+	}
 	created, err := r.svc.Tasks.Insert(listID, newTask).Context(r.ctx).Do()
 	if err != nil {
 		return domain.Task{}, wrapAPIError("create task", err)
 	}
 	return mapGoogleTaskToDomain(created, listID), nil
+}
+
+func (r *TaskRepo) DeleteTask(taskID, listID string) error {
+	err := r.svc.Tasks.Delete(listID, taskID).Context(r.ctx).Do()
+	return wrapAPIError("delete task", err)
 }
