@@ -2,6 +2,7 @@ package google
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -46,11 +47,16 @@ func ReposAsInterfaces(r *Repos) (domain.TaskRepository, domain.EventRepository)
 
 // WarnFallback writes a short diagnostic to stderr and explains the fallback.
 func WarnFallback(reason error) {
+	headline := "  tocli: running in offline mode (mock data)."
+	if errors.Is(reason, ErrOffline) {
+		headline = "  tocli: no internet connection; running in offline mode (mock data)."
+	}
 	fmt.Fprintf(os.Stderr,
-		"\n  tocli: running in offline mode (mock data).\n"+
+		"\n%s\n"+
 			"  Reason: %v\n"+
 			"  Run with -offline to suppress this message.\n"+
 			"  See docs/GOOGLE.md to set up Google integration.\n\n",
+		headline,
 		reason,
 	)
 }
