@@ -64,6 +64,16 @@ func main() {
 		taskRepo = mock.NewTaskRepo()
 		eventRepo = mock.NewEventRepo()
 	default:
+		if err := google.Reachable(ctx); err != nil {
+			if *syncOnly {
+				fmt.Fprintf(os.Stderr, "tocli: no internet connection (required for -sync).\n%v\n", err)
+				os.Exit(1)
+			}
+			google.WarnFallback(err)
+			taskRepo = mock.NewTaskRepo()
+			eventRepo = mock.NewEventRepo()
+			break
+		}
 		repos, err := google.TryGoogleRepos(ctx)
 		if err != nil {
 			if *syncOnly {
