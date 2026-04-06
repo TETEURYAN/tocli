@@ -65,7 +65,7 @@ func (m *TaskListModel) View() string {
 	counter := s.Subtitle.Render(fmt.Sprintf("  %d open · %d done", openCount, doneCount))
 	lines = append(lines, title, counter)
 	if m.Width >= 60 {
-		legend := s.Dim.Render("  W work · P personal · L learn · J job · · other")
+		legend := s.Dim.Render("  ! urgent · * important · W work · P personal · L learn · J job · · other")
 		lines = append(lines, legend)
 	}
 	lines = append(lines, "")
@@ -91,8 +91,17 @@ func (m *TaskListModel) View() string {
 
 func (m TaskListModel) renderTask(task domain.Task, selected bool) string {
 	s := m.styles
+	pri := domain.TaskEffectivePriority(task)
 	accent := theme.ListCategoryAccent(task.ListName)
 	mark := theme.ListCategoryMarker(task.ListName)
+	switch pri {
+	case domain.TaskPriorityUrgent:
+		accent = theme.T.Error
+		mark = "!"
+	case domain.TaskPriorityImportant:
+		accent = theme.T.Warning
+		mark = "*"
+	}
 	// Cursor + colored marker + space + title (+ optional due).
 	const markCells = 2
 	dueSuffix := ""
