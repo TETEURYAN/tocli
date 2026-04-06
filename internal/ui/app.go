@@ -1140,5 +1140,7 @@ func filterActiveTasks(tasks []domain.Task) []domain.Task {
 			}
 		}
 	}
+	domain.SortOpenTasksByPriorityAndDue(open)
+	domain.SortDoneTasksForDisplay(done)
 	return append(open, done...)
 }
