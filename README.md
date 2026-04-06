@@ -7,32 +7,41 @@
 ![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)
 ![TUI](https://img.shields.io/badge/TUI-Bubble%20Tea-FF75B7)
 ![License](https://img.shields.io/badge/License-MIT-purple)
-![Status](https://img.shields.io/badge/Status-v0.5.6--rc--1-orange)
+![Status](https://img.shields.io/badge/Status-v1.0.0-orange)
 
 </div>
 
 ---
 
-## 📖 Sobre
+## Sobre
 
-**Tocli** é um dashboard pessoal no terminal que agrupa **Google Tasks** (lista de tarefas), **Google Calendar** (agenda do dia) e **métricas visuais** estilo GitHub e barra de progresso do ano. A interface é totalmente orientada a teclado, com tema escuro e layout em painéis.
+**Tocli** é um painel pessoal no terminal que reúne **Google Tasks**, **Google Calendar** e **métricas visuais** (contribution graph e progresso do ano). Interface totalmente por teclado, tema escuro, layout em painéis.
 
-A integração com o Google usa o **SDK oficial** (`google.golang.org/api`) com **OAuth 2.0** — sem dependências externas de CLI ou ferramentas de terceiros. No estado atual, o projeto inclui um **adaptador mock** para rodar e explorar a TUI sem credenciais.
+A integração com o Google usa o **SDK oficial** com **OAuth 2.0**, sem ferramentas de terceiros. Há um **modo offline** com dados fictícios para explorar a TUI sem credenciais.
 
-## Principais funcionalidades
+![Demonstração](assets/tocli-screen.png)
 
-| Funcionalidade | Descrição |
-|----------------|-----------|
-| **Lista de tarefas** | Painel esquerdo com tarefas abertas e concluídas recentes; conclusão com `Enter` / `Espaço`. Sincroniza com Google Tasks. |
-| **Agenda do dia** | Eventos de hoje com horário, título e local; destaque para o que está em andamento. Lidos do Google Calendar. |
-| **Contribution graph** | Grade anual de tarefas concluídas por dia, com intensidade de cor proporcional ao volume. |
-| **Progresso do ano** | Percentual do ano decorrido, dias restantes e barra visual. |
-| **TUI moderna** | [Bubble Tea](https://github.com/charmbracelet/bubbletea) + [Lipgloss](https://github.com/charmbracelet/lipgloss), navegação estilo vim (`hjkl` / setas) e atalhos inspirados em LazyGit / GitHub CLI. |
+---
+
+## Funcionalidades
+
+| | Funcionalidade | Descrição |
+|---|---|---|
+| ✅ | **Lista de tarefas** | Tarefas abertas e concluídas de hoje; suporta criar, concluir, reabrir e excluir. Sincroniza com Google Tasks. |
+| 📅 | **Agenda do dia** | Eventos de hoje com horário, título e local. Destaque para o evento em andamento e esmaecimento dos passados. |
+| 🗓️ | **Detalhe por dia** | Navegar pelo contribution graph mostra os eventos e tarefas concluídas daquele dia na agenda. |
+| 📊 | **Contribution graph** | Grade anual de tarefas concluídas por dia, com intensidade de cor proporcional ao volume — estilo GitHub. |
+| 📈 | **Progresso do ano** | Percentual do ano decorrido, dia atual e dias restantes. |
+| 🔴 | **Prioridade** | Sistema de três níveis (Urgente / Importante / Normal) inferido automaticamente pelo nome da lista ou por prefixo no título da tarefa. |
+
+---
 
 ## Pré-requisitos
 
-- **Go 1.22+** instalado ([go.dev/dl](https://go.dev/dl/)).
-- Terminal com **suporte a cores** e, de preferência, **largura ≥ 100 colunas** para o layout em painéis.
+- **Go 1.22+** ([go.dev/dl](https://go.dev/dl/))
+- Terminal com suporte a cores e largura **≥ 100 colunas** recomendada (abaixo de 68 o layout muda para pilha vertical)
+
+---
 
 ## Instalação
 
@@ -42,9 +51,13 @@ cd tocli
 go mod download
 ```
 
-## Uso rápido (modo demo)
+---
 
-Rode sem nenhuma configuração para explorar a TUI com dados fictícios:
+## Uso
+
+### Modo demo (sem Google)
+
+Explora a TUI com dados fictícios, sem nenhuma configuração:
 
 ```bash
 go run .
@@ -52,28 +65,19 @@ go run .
 go build -o tocli . && ./tocli -offline
 ```
 
-## Uso com Google (modo produção)
+### Modo produção (com Google)
 
-### Para usuários finais
-
-Se você recebeu um binário pré-compilado com as credenciais embutidas, **nenhuma configuração é necessária**. Basta rodar:
+Se você recebeu um binário pré-compilado com as credenciais embutidas, apenas execute:
 
 ```bash
 ./tocli
 ```
 
-Na **primeira execução**:
-1. O terminal exibe um banner e **abre o browser automaticamente**.
-2. O browser mostra a tela de consentimento do Google.
-3. Você aprova o acesso ao Calendar (leitura) e Tasks (leitura e escrita).
-4. O browser mostra uma página de confirmação — pode fechar e voltar ao terminal.
-5. A TUI inicia com seus dados reais.
-
-Nas execuções seguintes o login é silencioso — o token é renovado automaticamente.
+Na **primeira execução** o browser abre automaticamente para autenticação OAuth. Após aprovar, volte ao terminal — o token é salvo e renovado automaticamente nas execuções seguintes.
 
 ### Para desenvolvedores
 
-Você precisa criar credenciais OAuth no Google Cloud Console e compilar o binário com elas embutidas via `-ldflags`:
+Compile embutindo suas credenciais OAuth do Google Cloud Console:
 
 ```bash
 go build \
@@ -82,43 +86,94 @@ go build \
   -o tocli .
 ```
 
-Veja o guia completo em **[docs/GOOGLE.md](docs/GOOGLE.md)**.
+Guia completo: **[docs/GOOGLE.md](docs/GOOGLE.md)**
 
-### Flags disponíveis
+---
+
+## Flags
 
 | Flag | Descrição |
 |------|-----------|
 | `-offline` | Usa dados mock, sem chamar APIs do Google |
-| `-sync` | Testa a autenticação Google e sai (sem TUI) |
+| `-sync` | Valida a conexão com o Google e sai (sem TUI) |
+| `-version` | Exibe a versão atual e compara com a última release no GitHub |
+| `-update` | Baixa a tag mais recente e recompila o binário automaticamente |
+
+---
 
 ## Atalhos de teclado
 
-### Tarefas (painel esquerdo)
-
-| Ação | Teclas |
-|------|--------|
-| Mover na lista | `↑` `↓` ou `k` `j` |
-| Marcar como concluída / reabrir | `Enter` ou `Espaço` |
-| Nova tarefa | `n` |
-| Trocar lista (ao criar) | `[` `]` |
-| Atualizar dados do Google | `r` |
-
-### Agenda (direita, topo)
-
-| Ação | Teclas |
-|------|--------|
-| Focar o painel | `Tab` / `Shift+Tab` |
-| Mover entre eventos | `↑` `↓` ou `k` `j` |
-
 ### Globais
 
-| Tecla | Função |
-|-------|--------|
-| `Tab` | Próximo painel |
-| `Shift+Tab` | Painel anterior |
-| `r` | Refresh (tarefas, eventos, gráfico) |
-| `?` | Ajuda |
+| Tecla | Ação |
+|-------|------|
+| `Tab` / `Shift+Tab` | Próximo / painel anterior |
+| `r` | Atualizar tarefas, eventos e gráfico |
+| `?` | Exibir / ocultar ajuda |
 | `q` / `Ctrl+C` | Sair |
+
+### Painel de tarefas
+
+| Tecla | Ação |
+|-------|------|
+| `↑` `↓` ou `k` `j` | Navegar na lista |
+| `Enter` ou `Espaço` | Concluir / reabrir tarefa selecionada |
+| `n` | Criar nova tarefa |
+| `d` → `y` | Excluir tarefa selecionada (pede confirmação; `n` ou `Esc` cancela) |
+
+### Criando uma tarefa (`n`)
+
+| Tecla | Ação |
+|-------|------|
+| `Tab` | Alternar foco entre campo **título** e campo **prazo** |
+| `[` `]` | Lista de destino anterior / próxima |
+| `Enter` | Confirmar e criar |
+| `Esc` | Cancelar |
+
+O campo de prazo aceita os formatos `DD-MM-YYYY` ou `DD-MM-YYYY HH:MM` (fuso local).
+
+### Painel de agenda
+
+| Tecla | Ação |
+|-------|------|
+| `↑` `↓` ou `k` `j` | Navegar entre eventos |
+
+### Painel de contribution graph
+
+| Tecla | Ação |
+|-------|------|
+| `←` `→` ou `h` `l` | Navegar semana a semana |
+| `↑` `↓` ou `k` `j` | Navegar dia a dia |
+
+Enquanto o cursor está sobre um dia no gráfico, a **agenda exibe os eventos e tarefas concluídas daquele dia** (não o dia atual).
+
+---
+
+## Sistema de prioridade
+
+O Google Tasks não tem campo de prioridade nativo. O Tocli infere três níveis:
+
+| Nível | Marcador | Como definir |
+|-------|----------|--------------|
+| **Urgente** | `🔴` vermelho | Prefixe o título com `[U]` ou `🔴` |
+| **Importante** | `⭐` amarelo | Prefixe o título com `[I]`, `⭐` ou `★` |
+| **Normal** | marcador de categoria | Nenhum prefixo necessário |
+
+Se nenhum prefixo for usado, o nível é inferido a partir do **nome da lista** por palavras-chave (ex.: `urgente`, `asap`, `critical` → Urgente; `priority`, `focus`, `star` → Importante).
+
+### Categorias de lista
+
+Quando a prioridade é Normal, a tarefa exibe um marcador de categoria baseado no nome da lista:
+
+| Marcador | Categoria | Exemplos de nome de lista |
+|----------|-----------|--------------------------|
+| `W` | Trabalho | `work`, `trabalho`, `job` |
+| `J` | Job | `job`, `freelance` |
+| `P` | Pessoal | `personal`, `pessoal`, `life` |
+| `L` | Aprendizado | `learning`, `study`, `curso` |
+| `·` | Padrão | qualquer outro nome |
+
+---
 
 ## Arquitetura
 
@@ -145,13 +200,17 @@ flowchart TB
 ```
 
 - **Domain** (`internal/domain`): entidades `Task`, `Event` e interfaces de repositório.
-- **Use cases** (`internal/usecase`): listar tarefas, eventos de hoje, gerar contribution graph, calcular progresso do ano.
+- **Use cases** (`internal/usecase`): listar tarefas, eventos do dia, contribution graph, progresso do ano.
 - **Adapters** (`internal/adapter`): `mock` para desenvolvimento/offline; `google` para integração real via SDK.
 - **UI** (`internal/ui`): modelo Bubble Tea, componentes em `internal/ui/components`, tema em `internal/ui/theme`.
 
+> Nenhum banco de dados local é criado. Os dados de tarefas e eventos vivem no Google (ou na memória em modo mock). Apenas o **token OAuth** é salvo em disco (`~/.config/tocli/token.json`).
+
+---
+
 ## Contribuindo
 
-Contribuições são bem-vindas: issues e pull requests.
+Contribuições são bem-vindas via issues e pull requests.
 
 ## Referências
 
@@ -161,6 +220,6 @@ Contribuições são bem-vindas: issues e pull requests.
 - [Google API Go Client](https://github.com/googleapis/google-api-go-client)
 - Inspiração visual: [Calcure](https://github.com/anufrievroman/calcure), contribution graphs estilo GitHub
 
-## 📄 Licença
+## Licença
 
 [MIT](LICENSE)
