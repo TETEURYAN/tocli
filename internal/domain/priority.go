@@ -58,9 +58,9 @@ func matchesImportantList(n string) bool {
 func TaskEffectivePriority(t Task) TaskPriority {
 	title := strings.TrimSpace(t.Title)
 	switch {
-	case strings.HasPrefix(title, "[!]"), strings.HasPrefix(title, "🔴"):
+	case strings.HasPrefix(title, "[U]"), strings.HasPrefix(title, "🔴"):
 		return TaskPriorityUrgent
-	case strings.HasPrefix(title, "[*]"), strings.HasPrefix(title, "⭐"), strings.HasPrefix(title, "★"):
+	case strings.HasPrefix(title, "[I]"), strings.HasPrefix(title, "⭐"), strings.HasPrefix(title, "★"):
 		return TaskPriorityImportant
 	}
 	return PriorityFromListName(t.ListName)
