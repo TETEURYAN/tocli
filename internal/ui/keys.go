@@ -18,6 +18,7 @@ type KeyMap struct {
 	PrevList   key.Binding
 	NextList   key.Binding
 	DeleteTask key.Binding
+	ToggleGraphMode key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -81,6 +82,10 @@ func DefaultKeyMap() KeyMap {
 		DeleteTask: key.NewBinding(
 			key.WithKeys("d"),
 			key.WithHelp("d", "delete task"),
+		),
+		ToggleGraphMode: key.NewBinding(
+			key.WithKeys("g"),
+			key.WithHelp("g", "toggle graph mode"),
 		),
 	}
 }

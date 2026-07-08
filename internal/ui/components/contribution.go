@@ -85,8 +85,20 @@ func visibleMonths(g gridLayout, curMonth, avail int) (int, int) {
 	return start, end
 }
 
+// GraphMode selects which dataset the graph pane renders: task-completion
+// density (the original GitHub-style contribution graph) or manually
+// entered daily mood/productivity scores.
+type GraphMode int
+
+const (
+	ModeContribution GraphMode = iota
+	ModeDaily
+)
+
 type ContributionModel struct {
 	Data       usecase.ContributionData
+	RatingData usecase.RatingData
+	Mode       GraphMode
 	Width      int
 	Height     int
 	Focused    bool
@@ -99,6 +111,15 @@ func NewContributionModel(s theme.Styles) ContributionModel {
 	return ContributionModel{
 		styles:     s,
 		CursorDate: time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local),
+	}
+}
+
+// ToggleMode flips between the contribution and daily rating views.
+func (m *ContributionModel) ToggleMode() {
+	if m.Mode == ModeContribution {
+		m.Mode = ModeDaily
+	} else {
+		m.Mode = ModeContribution
 	}
 }
 
@@ -165,8 +186,31 @@ func (m ContributionModel) dayCount(d time.Time) int {
 	return m.Data.DayCounts[d.Format("2006-01-02")]
 }
 
+// dayRating returns the score for d, or 0 (unrated) if none was set.
+func (m ContributionModel) dayRating(d time.Time) int {
+	if m.RatingData.DayScores == nil {
+		return 0
+	}
+	return m.RatingData.DayScores[d.Format("2006-01-02")]
+}
+
 func (m ContributionModel) View() string {
-	s := m.styles
+	if m.Mode == ModeDaily {
+		return m.viewDaily()
+	}
+	return m.viewContribution()
+}
+
+// gridLayoutParams bundles the grid sizing decisions shared by both graph
+// modes (contribution and daily rating render the exact same weekly grid,
+// just with different cell values, titles and legends).
+type gridLayoutParams struct {
+	grid                 gridLayout
+	compact, useGaps     bool
+	startMonth, endMonth int
+}
+
+func (m ContributionModel) computeGridLayout() gridLayoutParams {
 	year := m.cursorYear()
 	grid := computeGrid(year)
 
@@ -192,6 +236,76 @@ func (m ContributionModel) View() string {
 		}
 	}
 
+	return gridLayoutParams{
+		grid:       grid,
+		compact:    compact,
+		useGaps:    useGaps,
+		startMonth: startMonth,
+		endMonth:   endMonth,
+	}
+}
+
+// renderDayRows walks the shared weekly grid, delegating each non-cursor
+// cell's glyph to cellFn so contribution/daily modes can reuse the same
+// layout and cursor-highlighting logic.
+func (m ContributionModel) renderDayRows(lp gridLayoutParams, cellFn func(dt time.Time) string) []string {
+	s := m.styles
+	dayLabels := [7]string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
+	curMo, curWC, curWD := lp.grid.posFor(m.CursorDate)
+
+	var rows []string
+	for wd := 0; wd < 7; wd++ {
+		var row strings.Builder
+
+		if lp.compact {
+			if wd%2 == 1 {
+				row.WriteString(s.Dim.Render(string(dayLabels[wd][0])) + " ")
+			} else {
+				row.WriteString("  ")
+			}
+		} else {
+			if wd%2 == 1 {
+				row.WriteString(s.Dim.Render(fmt.Sprintf("%-3s ", dayLabels[wd])))
+			} else {
+				row.WriteString("    ")
+			}
+		}
+
+		for mo := lp.startMonth; mo < lp.endMonth; mo++ {
+			mi := lp.grid.months[mo]
+			for wc := 0; wc < mi.numWeekCols; wc++ {
+				dt, valid := lp.grid.dateAt(mo, wc, wd)
+				if !valid {
+					row.WriteString(" ")
+					continue
+				}
+				isCursor := m.Focused && mo == curMo && wc == curWC && wd == curWD
+				if isCursor {
+					row.WriteString(lipgloss.NewStyle().
+						Foreground(theme.T.Primary).Bold(true).Render("◆"))
+				} else {
+					row.WriteString(cellFn(dt))
+				}
+			}
+			if lp.useGaps && mo < lp.endMonth-1 {
+				row.WriteString(" ")
+			}
+		}
+
+		if lp.compact {
+			rows = append(rows, row.String())
+		} else {
+			rows = append(rows, "  "+row.String())
+		}
+	}
+	return rows
+}
+
+func (m ContributionModel) viewContribution() string {
+	s := m.styles
+	year := m.cursorYear()
+	lp := m.computeGridLayout()
+
 	showSubtitle := m.Height >= 7
 	showMonth := m.Height >= 8
 	showLegend := m.Height >= 11
@@ -216,61 +330,63 @@ func (m ContributionModel) View() string {
 
 	if showMonth {
 		lines = append(lines, "")
-		lines = append(lines, m.renderMonthHeaders(grid, startMonth, endMonth, useGaps, compact))
+		lines = append(lines, m.renderMonthHeaders(lp.grid, lp.startMonth, lp.endMonth, lp.useGaps, lp.compact))
 	}
 
-	dayLabels := [7]string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
-	curMo, curWC, curWD := grid.posFor(m.CursorDate)
-
-	for wd := 0; wd < 7; wd++ {
-		var row strings.Builder
-
-		if compact {
-			if wd%2 == 1 {
-				row.WriteString(s.Dim.Render(string(dayLabels[wd][0])) + " ")
-			} else {
-				row.WriteString("  ")
-			}
-		} else {
-			if wd%2 == 1 {
-				row.WriteString(s.Dim.Render(fmt.Sprintf("%-3s ", dayLabels[wd])))
-			} else {
-				row.WriteString("    ")
-			}
-		}
-
-		for mo := startMonth; mo < endMonth; mo++ {
-			mi := grid.months[mo]
-			for wc := 0; wc < mi.numWeekCols; wc++ {
-				dt, valid := grid.dateAt(mo, wc, wd)
-				if !valid {
-					row.WriteString(" ")
-					continue
-				}
-				count := m.dayCount(dt)
-				isCursor := m.Focused && mo == curMo && wc == curWC && wd == curWD
-				if isCursor {
-					row.WriteString(lipgloss.NewStyle().
-						Foreground(theme.T.Primary).Bold(true).Render("◆"))
-				} else {
-					row.WriteString(m.renderCell(count))
-				}
-			}
-			if useGaps && mo < endMonth-1 {
-				row.WriteString(" ")
-			}
-		}
-
-		if compact {
-			lines = append(lines, row.String())
-		} else {
-			lines = append(lines, "  "+row.String())
-		}
-	}
+	lines = append(lines, m.renderDayRows(lp, func(dt time.Time) string {
+		return m.renderCell(m.dayCount(dt))
+	})...)
 
 	if showLegend {
 		lines = append(lines, "")
-		lines = append(lines, m.renderLegend(compact))
+		lines = append(lines, m.renderLegend(lp.compact))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func (m ContributionModel) viewDaily() string {
+	s := m.styles
+	year := m.cursorYear()
+	lp := m.computeGridLayout()
+
+	showSubtitle := m.Height >= 7
+	showMonth := m.Height >= 8
+	showLegend := m.Height >= 11
+
+	var lines []string
+
+	title := s.Title.Render(fmt.Sprintf("  %d Daily Rating", year))
+	lines = append(lines, title)
+
+	if showSubtitle {
+		if m.Focused {
+			dateStr := m.CursorDate.Format("Mon, Jan 2")
+			ratingStr := "no rating"
+			if score := m.dayRating(m.CursorDate); score > 0 {
+				ratingStr = fmt.Sprintf("%d/5", score)
+			}
+			sub := s.Subtitle.Render("  press 1-5 to rate") +
+				"  " + lipgloss.NewStyle().Foreground(theme.T.Primary).Bold(true).Render("▸ "+dateStr) +
+				" " + s.Dim.Render("· "+ratingStr)
+			lines = append(lines, sub)
+		} else {
+			lines = append(lines, s.Subtitle.Render("  Daily mood/productivity, 1 (red) to 5 (green)"))
+		}
+	}
+
+	if showMonth {
+		lines = append(lines, "")
+		lines = append(lines, m.renderMonthHeaders(lp.grid, lp.startMonth, lp.endMonth, lp.useGaps, lp.compact))
+	}
+
+	lines = append(lines, m.renderDayRows(lp, func(dt time.Time) string {
+		return m.renderRatingCell(m.dayRating(dt))
+	})...)
+
+	if showLegend {
+		lines = append(lines, "")
+		lines = append(lines, m.renderRatingLegend(lp.compact))
 	}
 
 	return strings.Join(lines, "\n")
@@ -313,6 +429,25 @@ func (m ContributionModel) getLevel(count int) int {
 	default:
 		return 4
 	}
+}
+
+func (m ContributionModel) renderRatingCell(score int) string {
+	return lipgloss.NewStyle().Foreground(theme.RatingColor(score)).Render("█")
+}
+
+func (m ContributionModel) renderRatingLegend(compact bool) string {
+	s := m.styles
+	low := s.Dim.Render("1 ")
+	high := s.Dim.Render(" 5")
+	var cells []string
+	for score := 1; score <= 5; score++ {
+		cells = append(cells, m.renderRatingCell(score))
+	}
+	indent := "    "
+	if compact {
+		indent = "  "
+	}
+	return indent + low + strings.Join(cells, "") + high
 }
 
 func (m ContributionModel) renderLegend(compact bool) string {

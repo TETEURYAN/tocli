@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"tocli/internal/adapter/google"
+	"tocli/internal/adapter/local"
 	"tocli/internal/adapter/mock"
 	"tocli/internal/domain"
 	"tocli/internal/ui"
@@ -102,12 +103,26 @@ func main() {
 		}
 	}
 
+	// Daily ratings are purely local data (no Google equivalent), so they're
+	// wired up independently of the Google/mock task+event repo choice above:
+	// -offline gets in-memory sample data, everything else persists to disk.
+	var ratingRepo domain.RatingRepository
+	if *offline {
+		ratingRepo = mock.NewRatingRepo()
+	} else if repo, err := local.NewRatingRepo(); err != nil {
+		fmt.Fprintf(os.Stderr, "tocli: could not open local ratings store (%v); daily ratings will not persist this session.\n", err)
+		ratingRepo = mock.NewRatingRepo()
+	} else {
+		ratingRepo = repo
+	}
+
 	taskUC := usecase.NewTaskUseCase(taskRepo)
 	eventUC := usecase.NewEventUseCase(eventRepo)
 	contribUC := usecase.NewContributionUseCase(taskRepo)
+	ratingUC := usecase.NewRatingUseCase(ratingRepo)
 	progressUC := usecase.NewProgressUseCase()
 
-	model := ui.NewModel(taskUC, eventUC, contribUC, progressUC)
+	model := ui.NewModel(taskUC, eventUC, contribUC, ratingUC, progressUC)
 
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 

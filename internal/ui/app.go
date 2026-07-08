@@ -213,6 +213,7 @@ type Model struct {
 	taskUC    *usecase.TaskUseCase
 	eventUC   *usecase.EventUseCase
 	contribUC *usecase.ContributionUseCase
+	ratingUC  *usecase.RatingUseCase
 	progressUC *usecase.ProgressUseCase
 
 	keys       KeyMap
@@ -252,6 +253,10 @@ type contributionLoadedMsg struct {
 	data usecase.ContributionData
 }
 
+type ratingLoadedMsg struct {
+	data usecase.RatingData
+}
+
 type dayDetailLoadedMsg struct {
 	date   time.Time
 	events []domain.Event
@@ -268,6 +273,7 @@ func NewModel(
 	taskUC *usecase.TaskUseCase,
 	eventUC *usecase.EventUseCase,
 	contribUC *usecase.ContributionUseCase,
+	ratingUC *usecase.RatingUseCase,
 	progressUC *usecase.ProgressUseCase,
 ) Model {
 	s := theme.NewStyles()
@@ -287,6 +293,7 @@ func NewModel(
 		taskUC:       taskUC,
 		eventUC:      eventUC,
 		contribUC:    contribUC,
+		ratingUC:     ratingUC,
 		progressUC:   progressUC,
 		keys:         DefaultKeyMap(),
 		styles:       s,
@@ -302,6 +309,7 @@ func (m Model) Init() tea.Cmd {
 		m.loadTasks(),
 		m.loadEvents(),
 		m.loadContribution(),
+		m.loadRatings(),
 		tickCmd(),
 	)
 }
@@ -364,6 +372,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.progress.Progress = m.progressUC.Calculate()
 		return m, nil
 
+	case ratingLoadedMsg:
+		m.contribution.RatingData = msg.data
+		return m, nil
+
 	case dayDetailLoadedMsg:
 		if m.activePane == GraphPane && msg.date.Equal(m.contribution.CursorDate) {
 			m.agenda.OverrideDate = &msg.date
@@ -417,13 +429,38 @@ func quitFromKey(msg tea.KeyMsg, quit key.Binding) bool {
 	return false
 }
 
+// ratingDigit reports whether msg is a "1".."5" rune keypress, returning the
+// score it represents.
+func ratingDigit(msg tea.KeyMsg) (int, bool) {
+	if msg.Type != tea.KeyRunes || len(msg.Runes) != 1 {
+		return 0, false
+	}
+	r := msg.Runes[0]
+	if r < '1' || r > '5' {
+		return 0, false
+	}
+	return int(r - '0'), true
+}
+
 func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.activePane == GraphPane && m.contribution.Mode == components.ModeDaily {
+		if score, ok := ratingDigit(msg); ok {
+			return m, m.setDayRating(m.contribution.CursorDate, score)
+		}
+	}
+
 	switch {
 	case quitFromKey(msg, m.keys.Quit):
 		return m, tea.Quit
 
 	case key.Matches(msg, m.keys.Help):
 		m.showHelp = !m.showHelp
+		return m, nil
+
+	case key.Matches(msg, m.keys.ToggleGraphMode):
+		if m.activePane == GraphPane {
+			m.contribution.ToggleMode()
+		}
 		return m, nil
 
 	case key.Matches(msg, m.keys.Tab):
@@ -452,7 +489,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case key.Matches(msg, m.keys.Refresh):
 		m.loading = true
-		return m, tea.Batch(m.loadTasks(), m.loadEvents(), m.loadContribution())
+		return m, tea.Batch(m.loadTasks(), m.loadEvents(), m.loadContribution(), m.loadRatings())
 
 	case key.Matches(msg, m.keys.NewTask):
 		if m.activePane == TaskPane {
@@ -703,18 +740,26 @@ func (m Model) renderStatusBar() string {
 	case m.activePane == GraphPane && m.width < 92:
 		helpKeys = []struct{ key, desc string }{
 			{"←→↑↓", "navigate"},
+			{"g", "mode"},
 			{"tab", "pane"},
 			{"?", "help"},
 			{"q", "quit"},
+		}
+		if m.contribution.Mode == components.ModeDaily {
+			helpKeys = append([]struct{ key, desc string }{{"1-5", "rate"}}, helpKeys...)
 		}
 	case m.activePane == GraphPane:
 		helpKeys = []struct{ key, desc string }{
 			{"←→", "week"},
 			{"↑↓", "day"},
+			{"g", "toggle mode"},
 			{"tab", "switch pane"},
 			{"r", "refresh"},
 			{"?", "help"},
 			{"q", "quit"},
+		}
+		if m.contribution.Mode == components.ModeDaily {
+			helpKeys = append([]struct{ key, desc string }{{"1-5", "rate day"}}, helpKeys...)
 		}
 	case m.width < 92:
 		helpKeys = []struct{ key, desc string }{
@@ -772,6 +817,8 @@ func (m Model) renderHelp() string {
 		{"Space / Enter", "Complete or reopen task"},
 		{"n", "New task (tasks pane; optional due)"},
 		{"d then y/n", "Delete task (confirm)"},
+		{"g", "Toggle contribution/daily rating mode (graph pane)"},
+		{"1-5", "Rate selected day (graph pane, daily mode)"},
 		{"r", "Refresh data"},
 		{"?", "Toggle help"},
 		{"q / Ctrl+C", "Quit"},
@@ -817,6 +864,23 @@ func (m Model) loadContribution() tea.Cmd {
 	return func() tea.Msg {
 		data := m.contribUC.Generate(time.Now().Year())
 		return contributionLoadedMsg{data: data}
+	}
+}
+
+func (m Model) loadRatings() tea.Cmd {
+	return func() tea.Msg {
+		data := m.ratingUC.Generate(time.Now().Year())
+		return ratingLoadedMsg{data: data}
+	}
+}
+
+func (m Model) setDayRating(date time.Time, score int) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.ratingUC.SetRating(date, score); err != nil {
+			return errMsg{err: err}
+		}
+		data := m.ratingUC.Generate(date.Year())
+		return ratingLoadedMsg{data: data}
 	}
 }
 
