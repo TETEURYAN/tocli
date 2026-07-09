@@ -31,6 +31,7 @@ A integração com o Google usa o **SDK oficial** com **OAuth 2.0**, sem ferrame
 | 📅 | **Agenda do dia** | Eventos de hoje com horário, título e local. Destaque para o evento em andamento e esmaecimento dos passados. |
 | 🗓️ | **Detalhe por dia** | Navegar pelo contribution graph mostra os eventos e tarefas concluídas daquele dia na agenda. |
 | 📊 | **Contribution graph** | Grade anual de tarefas concluídas por dia, com intensidade de cor proporcional ao volume — estilo GitHub. |
+| 🌈 | **Daily Rating Graph** | Segundo modo do gráfico (`g` alterna): atribua uma nota de 1 a 5 para cada dia (humor/produtividade), com cor interpolada de vermelho a verde. Nota persiste em disco e pode ser exportada em CSV mês a mês. |
 | 📈 | **Progresso do ano** | Percentual do ano decorrido, dia atual e dias restantes. |
 | 🔴 | **Prioridade** | Sistema de três níveis (Urgente / Importante / Normal) inferido automaticamente pelo nome da lista ou por prefixo no título da tarefa. |
 
@@ -138,14 +139,21 @@ O campo de prazo aceita os formatos `DD-MM-YYYY` ou `DD-MM-YYYY HH:MM` (fuso loc
 |-------|------|
 | `↑` `↓` ou `k` `j` | Navegar entre eventos |
 
-### Painel de contribution graph
+### Painel de gráfico (contribution / daily rating)
 
 | Tecla | Ação |
 |-------|------|
 | `←` `→` ou `h` `l` | Navegar semana a semana |
 | `↑` `↓` ou `k` `j` | Navegar dia a dia |
+| `g` | Alternar entre **contribution graph** e **daily rating** |
+| `1`-`5` | *(modo daily rating)* Atribuir nota ao dia selecionado |
+| `e` | *(modo daily rating)* Exportar as notas do mês exibido para CSV |
 
-Enquanto o cursor está sobre um dia no gráfico, a **agenda exibe os eventos e tarefas concluídas daquele dia** (não o dia atual).
+Enquanto o cursor está sobre um dia no gráfico, a **agenda exibe os eventos e tarefas concluídas daquele dia** (não o dia atual) — em ambos os modos.
+
+O **daily rating** é uma nota manual de 1 (vermelho) a 5 (verde) para humor/produtividade do dia, independente do Google — não sincroniza com nenhuma conta, apenas fica salva localmente (veja [Arquitetura](#arquitetura)).
+
+A exportação (`e`) gera um arquivo `tocli-ratings-AAAA-MM.csv` no diretório atual, com uma linha por dia do mês (`data,nota`) e nota em branco nos dias sem avaliação.
 
 ---
 
@@ -183,28 +191,30 @@ flowchart TB
         UI["TUI · Bubble Tea\ncomponents · theme · keys"]
     end
     subgraph app_layer["Aplicação — internal/usecase"]
-        UC["Casos de uso\ntarefas · agenda · contribution · progresso do ano"]
+        UC["Casos de uso\ntarefas · agenda · contribution · daily rating · progresso do ano"]
     end
     subgraph domain_layer["Domínio — internal/domain"]
-        DM["Entidades Task, Event\ncontratos TaskRepository · EventRepository"]
+        DM["Entidades Task, Event, DailyRating\ncontratos TaskRepository · EventRepository · RatingRepository"]
     end
     subgraph infra_layer["Infraestrutura — internal/adapter"]
         MOCK["mock\n(fallback / testes)"]
         GOOGLE["google\nOAuth 2.0 + SDK oficial\nCalendar API · Tasks API"]
+        LOCAL["local\nRatingRepository → ratings.json"]
     end
 
     UI --> UC
     UC --> DM
     MOCK -.->|implementa| DM
     GOOGLE -.->|implementa| DM
+    LOCAL -.->|implementa| DM
 ```
 
-- **Domain** (`internal/domain`): entidades `Task`, `Event` e interfaces de repositório.
-- **Use cases** (`internal/usecase`): listar tarefas, eventos do dia, contribution graph, progresso do ano.
-- **Adapters** (`internal/adapter`): `mock` para desenvolvimento/offline; `google` para integração real via SDK.
+- **Domain** (`internal/domain`): entidades `Task`, `Event`, `DailyRating` e interfaces de repositório.
+- **Use cases** (`internal/usecase`): listar tarefas, eventos do dia, contribution graph, daily rating (+ exportação CSV), progresso do ano.
+- **Adapters** (`internal/adapter`): `mock` para desenvolvimento/offline; `google` para integração real via SDK; `local` para persistência das notas diárias (não sincroniza com Google).
 - **UI** (`internal/ui`): modelo Bubble Tea, componentes em `internal/ui/components`, tema em `internal/ui/theme`.
 
-> Nenhum banco de dados local é criado. Os dados de tarefas e eventos vivem no Google (ou na memória em modo mock). Apenas o **token OAuth** é salvo em disco (`~/.config/tocli/token.json`).
+> Nenhum banco de dados é criado. Tarefas e eventos vivem no Google (ou na memória em modo mock). O **token OAuth** é salvo em `~/.config/tocli/token.json` e as **notas do daily rating** em `~/.config/tocli/ratings.json` (em modo `-offline`, ficam apenas em memória com dados de exemplo).
 
 ---
 
