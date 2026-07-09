@@ -194,6 +194,14 @@ func (m ContributionModel) dayRating(d time.Time) int {
 	return m.RatingData.DayScores[d.Format("2006-01-02")]
 }
 
+// DayNote returns the free-text note for d, or "" if none was set.
+func (m ContributionModel) DayNote(d time.Time) string {
+	if m.RatingData.DayNotes == nil {
+		return ""
+	}
+	return m.RatingData.DayNotes[d.Format("2006-01-02")]
+}
+
 func (m ContributionModel) View() string {
 	if m.Mode == ModeDaily {
 		return m.viewDaily()
@@ -366,9 +374,13 @@ func (m ContributionModel) viewDaily() string {
 			if score := m.dayRating(m.CursorDate); score > 0 {
 				ratingStr = fmt.Sprintf("%d/5", score)
 			}
-			sub := s.Subtitle.Render("  press 1-5 to rate") +
+			noteStr := ""
+			if m.DayNote(m.CursorDate) != "" {
+				noteStr = " " + s.Dim.Render("· 📝 has note")
+			}
+			sub := s.Subtitle.Render("  press 1-5 to rate, t for note") +
 				"  " + lipgloss.NewStyle().Foreground(theme.T.Primary).Bold(true).Render("▸ "+dateStr) +
-				" " + s.Dim.Render("· "+ratingStr)
+				" " + s.Dim.Render("· "+ratingStr) + noteStr
 			lines = append(lines, sub)
 		} else {
 			lines = append(lines, s.Subtitle.Render("  Daily mood/productivity, 1 (red) to 5 (green)"))

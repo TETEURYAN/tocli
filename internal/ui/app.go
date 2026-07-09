@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -235,6 +236,10 @@ type Model struct {
 	awaitingDeleteConfirm   bool
 	taskLists               []domain.TaskList
 	createListIndex         int
+
+	writingNote bool
+	noteInput   textarea.Model
+	noteDate    time.Time
 }
 
 type tasksLoadedMsg struct {
@@ -273,6 +278,10 @@ type exportDoneMsg struct {
 	path string
 }
 
+type noteSavedMsg struct {
+	data usecase.RatingData
+}
+
 type tickMsg time.Time
 
 func NewModel(
@@ -291,6 +300,12 @@ func NewModel(
 	dueTi.Placeholder = "Date: DD-MM-YYYY or DD-MM-YYYY HH:MM (optional)"
 	dueTi.CharLimit = 32
 	dueTi.Width = 40
+	noteTa := textarea.New()
+	noteTa.Placeholder = "How was this day?"
+	noteTa.CharLimit = domain.MaxRatingNoteLength
+	noteTa.SetWidth(50)
+	noteTa.SetHeight(6)
+	noteTa.ShowLineNumbers = false
 	return Model{
 		tasks:        components.NewTaskListModel(s),
 		agenda:       components.NewAgendaModel(s),
@@ -307,6 +322,7 @@ func NewModel(
 		loading:      true,
 		createInput:  ti,
 		dueInput:     dueTi,
+		noteInput:    noteTa,
 	}
 }
 
@@ -333,12 +349,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.dueInput.Width = w
 			}
 		}
+		if m.writingNote {
+			w := min(70, max(24, m.width-14))
+			if w > 0 {
+				m.noteInput.SetWidth(w)
+			}
+		}
 		m.updateLayout()
 		return m, nil
 
 	case tea.KeyMsg:
 		if m.awaitingDeleteConfirm {
 			return m.handleDeleteConfirmKey(msg)
+		}
+		if m.writingNote {
+			return m.handleNoteKey(msg)
 		}
 		if m.creatingTask {
 			return m.handleCreateKey(msg)
@@ -382,6 +407,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.contribution.RatingData = msg.data
 		return m, nil
 
+	case noteSavedMsg:
+		m.contribution.RatingData = msg.data
+		m.writingNote = false
+		m.noteInput.Blur()
+		m.noteInput.Reset()
+		return m, nil
+
 	case dayDetailLoadedMsg:
 		if m.activePane == GraphPane && msg.date.Equal(m.contribution.CursorDate) {
 			m.agenda.OverrideDate = &msg.date
@@ -420,6 +452,10 @@ func (m Model) View() string {
 
 	if m.creatingTask {
 		return m.renderCreateTaskScreen()
+	}
+
+	if m.writingNote {
+		return m.renderWriteNoteScreen()
 	}
 
 	header := m.renderHeader()
@@ -478,6 +514,12 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.ExportCSV):
 		if m.activePane == GraphPane && m.contribution.Mode == components.ModeDaily {
 			return m, m.exportRatingsCSV()
+		}
+		return m, nil
+
+	case key.Matches(msg, m.keys.WriteNote):
+		if m.activePane == GraphPane && m.contribution.Mode == components.ModeDaily {
+			m.startWriteNote()
 		}
 		return m, nil
 
@@ -766,7 +808,7 @@ func (m Model) renderStatusBar() string {
 			{"q", "quit"},
 		}
 		if m.contribution.Mode == components.ModeDaily {
-			helpKeys = append([]struct{ key, desc string }{{"e", "export"}, {"1-5", "rate"}}, helpKeys...)
+			helpKeys = append([]struct{ key, desc string }{{"t", "note"}, {"e", "export"}, {"1-5", "rate"}}, helpKeys...)
 		}
 	case m.activePane == GraphPane:
 		helpKeys = []struct{ key, desc string }{
@@ -779,7 +821,7 @@ func (m Model) renderStatusBar() string {
 			{"q", "quit"},
 		}
 		if m.contribution.Mode == components.ModeDaily {
-			helpKeys = append([]struct{ key, desc string }{{"e", "export csv"}, {"1-5", "rate day"}}, helpKeys...)
+			helpKeys = append([]struct{ key, desc string }{{"t", "day note"}, {"e", "export csv"}, {"1-5", "rate day"}}, helpKeys...)
 		}
 	case m.width < 92:
 		helpKeys = []struct{ key, desc string }{
@@ -839,7 +881,8 @@ func (m Model) renderHelp() string {
 		{"d then y/n", "Delete task (confirm)"},
 		{"g", "Toggle contribution/daily rating mode (graph pane)"},
 		{"1-5", "Rate selected day (graph pane, daily mode)"},
-		{"e", "Export month's ratings to CSV (graph pane, daily mode)"},
+		{"t", "Write/edit a note for the selected day (graph pane, daily mode)"},
+		{"e", "Export month's ratings + notes to CSV (graph pane, daily mode)"},
 		{"r", "Refresh data"},
 		{"?", "Toggle help"},
 		{"q / Ctrl+C", "Quit"},
@@ -902,6 +945,16 @@ func (m Model) setDayRating(date time.Time, score int) tea.Cmd {
 		}
 		data := m.ratingUC.Generate(date.Year())
 		return ratingLoadedMsg{data: data}
+	}
+}
+
+func (m Model) saveNote(date time.Time, note string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.ratingUC.SetNote(date, note); err != nil {
+			return errMsg{err: err}
+		}
+		data := m.ratingUC.Generate(date.Year())
+		return noteSavedMsg{data: data}
 	}
 }
 
@@ -1094,6 +1147,45 @@ func (m *Model) startCreateTask() {
 	m.createInput.Focus()
 }
 
+func (m *Model) startWriteNote() {
+	m.writingNote = true
+	m.err = nil
+	m.noteDate = m.contribution.CursorDate
+	m.noteInput.SetValue(m.contribution.DayNote(m.noteDate))
+	w := min(70, max(24, m.width-14))
+	if w > 0 {
+		m.noteInput.SetWidth(w)
+	}
+	m.noteInput.Focus()
+}
+
+func (m *Model) cancelWriteNote() {
+	m.writingNote = false
+	m.noteInput.Blur()
+	m.noteInput.Reset()
+	m.err = nil
+}
+
+func (m *Model) handleNoteKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	// Do not bind "q" here — it must go to the textarea (notes can contain the letter q).
+	case msg.String() == "ctrl+c":
+		return m, tea.Quit
+
+	case msg.String() == "esc":
+		m.cancelWriteNote()
+		return m, nil
+
+	case msg.String() == "ctrl+s":
+		return m, m.saveNote(m.noteDate, strings.TrimSpace(m.noteInput.Value()))
+
+	default:
+		var cmd tea.Cmd
+		m.noteInput, cmd = m.noteInput.Update(msg)
+		return m, cmd
+	}
+}
+
 func (m *Model) cancelCreateTask() {
 	m.creatingTask = false
 	m.createDueFocused = false
@@ -1220,6 +1312,61 @@ func (m Model) renderCreateStatusBar() string {
 		m.styles.HelpKey.Render("enter") + " " + m.styles.HelpDesc.Render("save"),
 		m.styles.HelpKey.Render("tab") + " " + m.styles.HelpDesc.Render("field"),
 		m.styles.HelpKey.Render("[ ]") + " " + m.styles.HelpDesc.Render("list"),
+	}
+	help := strings.Join(helpParts, "  ")
+	gap := strings.Repeat(" ", max(0, m.width-lipgloss.Width(left)-lipgloss.Width(help)-2))
+	return lipgloss.NewStyle().
+		Background(theme.T.Surface).
+		Width(m.width).
+		Padding(0, 1).
+		Inline(true).
+		Render(left + gap + help)
+}
+
+func (m Model) renderWriteNoteScreen() string {
+	header := m.renderHeader()
+	bodyH := bodyOuterLines(m.height)
+
+	title := m.styles.Title.Render("  Day note — " + m.noteDate.Format("Mon, Jan 2 2006"))
+	inputLine := "  " + m.noteInput.View()
+	hint := m.styles.Dim.Render(fmt.Sprintf("  ctrl+s save  ·  esc cancel  ·  ctrl+c quit  ·  %d/%d",
+		len(m.noteInput.Value()), domain.MaxRatingNoteLength))
+
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		"",
+		inputLine,
+		"",
+		hint,
+	)
+
+	if bodyH <= 0 {
+		status := m.renderWriteNoteStatusBar()
+		return m.finalizeFrame(lipgloss.JoinVertical(lipgloss.Left, header, "", status))
+	}
+
+	boxW := min(max(8, m.width-4), 78)
+	innerH := max(1, panelInnerHeight(bodyH))
+	if innerH > bodyH {
+		innerH = max(1, bodyH)
+	}
+	panel := m.styles.Panel.Width(boxW).Height(innerH).Render(content)
+	body := lipgloss.Place(m.width, bodyH, lipgloss.Center, lipgloss.Center, panel,
+		lipgloss.WithWhitespaceBackground(theme.T.Base))
+	body = clipToLines(body, bodyH)
+	status := m.renderWriteNoteStatusBar()
+
+	return m.finalizeFrame(lipgloss.JoinVertical(lipgloss.Left, header, body, status))
+}
+
+func (m Model) renderWriteNoteStatusBar() string {
+	left := m.styles.HelpKey.Render(" day note ")
+	if m.err != nil {
+		left += lipgloss.NewStyle().Foreground(theme.T.Error).Render(fmt.Sprintf("%v ", m.err))
+	}
+	helpParts := []string{
+		m.styles.HelpKey.Render("esc") + " " + m.styles.HelpDesc.Render("cancel"),
+		m.styles.HelpKey.Render("ctrl+s") + " " + m.styles.HelpDesc.Render("save"),
 	}
 	help := strings.Join(helpParts, "  ")
 	gap := strings.Repeat(" ", max(0, m.width-lipgloss.Width(left)-lipgloss.Width(help)-2))

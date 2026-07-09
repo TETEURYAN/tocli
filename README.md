@@ -31,7 +31,7 @@ A integração com o Google usa o **SDK oficial** com **OAuth 2.0**, sem ferrame
 | 📅 | **Agenda do dia** | Eventos de hoje com horário, título e local. Destaque para o evento em andamento e esmaecimento dos passados. |
 | 🗓️ | **Detalhe por dia** | Navegar pelo contribution graph mostra os eventos e tarefas concluídas daquele dia na agenda. |
 | 📊 | **Contribution graph** | Grade anual de tarefas concluídas por dia, com intensidade de cor proporcional ao volume — estilo GitHub. |
-| 🌈 | **Daily Rating Graph** | Segundo modo do gráfico (`g` alterna): atribua uma nota de 1 a 5 para cada dia (humor/produtividade), com cor interpolada de vermelho a verde. Nota persiste em disco e pode ser exportada em CSV mês a mês. |
+| 🌈 | **Daily Rating Graph** | Segundo modo do gráfico (`g` alterna): atribua uma nota de 1 a 5 para cada dia (humor/produtividade), com cor interpolada de vermelho a verde, e escreva um texto livre sobre como foi o dia (`t`). Nota e texto persistem em disco e podem ser exportados em CSV mês a mês. |
 | 📈 | **Progresso do ano** | Percentual do ano decorrido, dia atual e dias restantes. |
 | 🔴 | **Prioridade** | Sistema de três níveis (Urgente / Importante / Normal) inferido automaticamente pelo nome da lista ou por prefixo no título da tarefa. |
 
@@ -147,13 +147,16 @@ O campo de prazo aceita os formatos `DD-MM-YYYY` ou `DD-MM-YYYY HH:MM` (fuso loc
 | `↑` `↓` ou `k` `j` | Navegar dia a dia |
 | `g` | Alternar entre **contribution graph** e **daily rating** |
 | `1`-`5` | *(modo daily rating)* Atribuir nota ao dia selecionado |
-| `e` | *(modo daily rating)* Exportar as notas do mês exibido para CSV |
+| `t` | *(modo daily rating)* Escrever/editar um texto livre sobre o dia selecionado |
+| `e` | *(modo daily rating)* Exportar as notas e textos do mês exibido para CSV |
 
 Enquanto o cursor está sobre um dia no gráfico, a **agenda exibe os eventos e tarefas concluídas daquele dia** (não o dia atual) — em ambos os modos.
 
 O **daily rating** é uma nota manual de 1 (vermelho) a 5 (verde) para humor/produtividade do dia, independente do Google — não sincroniza com nenhuma conta, apenas fica salva localmente (veja [Arquitetura](#arquitetura)).
 
-A exportação (`e`) gera um arquivo `tocli-ratings-AAAA-MM.csv` no diretório atual, com uma linha por dia do mês (`data,nota`) e nota em branco nos dias sem avaliação.
+Pressionar `t` abre uma tela cheia com um campo de texto multi-linha (já preenchido com o texto existente, se houver) para descrever como foi o dia — `ctrl+s` salva, `esc` cancela. Quando o dia selecionado tem um texto salvo, o subtítulo do gráfico mostra `📝 has note`.
+
+A exportação (`e`) gera um arquivo `tocli-ratings-AAAA-MM.csv` no diretório atual, com uma linha por dia do mês (`data,nota,texto`) — nota em branco nos dias sem avaliação, texto em branco nos dias sem anotação.
 
 ---
 
