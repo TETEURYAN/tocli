@@ -21,7 +21,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-var Version = "v0.5.6-rc-1"
+var Version = "v1.1.0"
 
 type GitHubRelease struct {
 	TagName string `json:"tag_name"`
