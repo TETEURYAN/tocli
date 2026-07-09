@@ -15,11 +15,25 @@
 
 ## Sobre
 
-**Tocli** é um painel pessoal no terminal que reúne **Google Tasks**, **Google Calendar** e **métricas visuais** (contribution graph e progresso do ano). Interface totalmente por teclado, tema escuro, layout em painéis.
+**Tocli** reúne **Google Tasks**, **Google Calendar** e **métricas visuais** (contribution graph, daily rating e progresso do ano) num único painel de terminal — interface totalmente por teclado, tema escuro, layout em painéis.
 
-A integração com o Google usa o **SDK oficial** com **OAuth 2.0**, sem ferramentas de terceiros. Há um **modo offline** com dados fictícios para explorar a TUI sem credenciais.
+A integração com o Google usa o **SDK oficial** com **OAuth 2.0**, sem ferramentas de terceiros.
 
 ![Demonstração](assets/tocli-screen.png)
+
+---
+
+## Comece agora
+
+Sem credenciais, sem configuração — explora a TUI com dados fictícios:
+
+```bash
+git clone https://github.com/TETEURYAN/tocli.git
+cd tocli
+go run . -offline
+```
+
+Quer conectar sua conta Google de verdade? Veja [Uso](#uso).
 
 ---
 
@@ -56,17 +70,17 @@ go mod download
 
 ## Uso
 
-### Modo demo (sem Google)
+Esta seção cobre os três jeitos de rodar o Tocli — escolha o que corresponde ao seu caso.
 
-Explora a TUI com dados fictícios, sem nenhuma configuração:
+### Sem Google (modo demo)
+
+Já coberto em [Comece agora](#comece-agora): `go run . -offline`, ou compile o binário primeiro:
 
 ```bash
-go run .
-# ou
 go build -o tocli . && ./tocli -offline
 ```
 
-### Modo produção (com Google)
+### Com Google, binário pronto
 
 Se você recebeu um binário pré-compilado com as credenciais embutidas, apenas execute:
 
@@ -76,7 +90,7 @@ Se você recebeu um binário pré-compilado com as credenciais embutidas, apenas
 
 Na **primeira execução** o browser abre automaticamente para autenticação OAuth. Após aprovar, volte ao terminal — o token é salvo e renovado automaticamente nas execuções seguintes.
 
-### Para desenvolvedores
+### Com Google, compilando você mesmo
 
 Compile embutindo suas credenciais OAuth do Google Cloud Console:
 
@@ -87,7 +101,7 @@ go build \
   -o tocli .
 ```
 
-Guia completo: **[docs/GOOGLE.md](docs/GOOGLE.md)**
+Guia completo de setup OAuth: **[docs/GOOGLE.md](docs/GOOGLE.md)**
 
 ---
 
@@ -188,6 +202,8 @@ Quando a prioridade é Normal, a tarefa exibe um marcador de categoria baseado n
 
 ## Arquitetura
 
+Para quem quer contribuir ou entender como o Tocli é montado por baixo dos panos:
+
 ```mermaid
 flowchart TB
     subgraph ui_layer["Interface — internal/ui"]
@@ -223,7 +239,19 @@ flowchart TB
 
 ## Contribuindo
 
-Contribuições são bem-vindas via issues e pull requests.
+Contribuições são bem-vindas via issues e pull requests:
+
+1. Abra uma issue descrevendo o bug ou a proposta antes de um PR grande, para alinhar o escopo.
+2. Para PRs: um branch por mudança, descrição do que foi feito e por quê.
+3. Não há suíte de testes automatizada no repositório ainda — se adicionar testes, siga a convenção padrão do Go (`_test.go` ao lado do código testado).
+
+---
+
+## Suporte
+
+Encontrou um bug ou tem uma dúvida? Abra uma [issue no GitHub](https://github.com/TETEURYAN/tocli/issues) — é o único canal de suporte do projeto no momento.
+
+---
 
 ## Referências
 
