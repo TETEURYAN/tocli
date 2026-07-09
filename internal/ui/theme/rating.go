@@ -7,16 +7,17 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// RatingColor interpolates linearly (in RGB space) between Error (score 1,
-// red) and Success (score 5, green). Scores outside 1-5 — in particular 0,
-// the "not rated" sentinel — return the same neutral color the contribution
-// graph uses for empty days.
+// RatingColor interpolates linearly (in RGB space) between RatingLow (score
+// 1, red) and RatingHigh (score 5, green) — a more saturated pair than
+// Error/Success so the gradient reads clearly at a glance. Scores outside
+// 1-5 — in particular 0, the "not rated" sentinel — return the same neutral
+// color the contribution graph uses for empty days.
 func RatingColor(score int) lipgloss.Color {
 	if score < 1 || score > 5 {
 		return T.GraphLvl0
 	}
 	t := float64(score-1) / float64(MaxRatingScore-1)
-	return lerpColor(T.Error, T.Success, t)
+	return lerpColor(T.RatingLow, T.RatingHigh, t)
 }
 
 // MaxRatingScore mirrors domain.MaxRatingScore; kept local to avoid a
