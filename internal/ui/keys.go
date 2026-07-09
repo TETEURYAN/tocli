@@ -18,6 +18,9 @@ type KeyMap struct {
 	PrevList   key.Binding
 	NextList   key.Binding
 	DeleteTask key.Binding
+	ToggleGraphMode key.Binding
+	ExportCSV  key.Binding
+	WriteNote  key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -81,6 +84,18 @@ func DefaultKeyMap() KeyMap {
 		DeleteTask: key.NewBinding(
 			key.WithKeys("d"),
 			key.WithHelp("d", "delete task"),
+		),
+		ToggleGraphMode: key.NewBinding(
+			key.WithKeys("g"),
+			key.WithHelp("g", "toggle graph mode"),
+		),
+		ExportCSV: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("e", "export month csv"),
+		),
+		WriteNote: key.NewBinding(
+			key.WithKeys("t"),
+			key.WithHelp("t", "write day note"),
 		),
 	}
 }

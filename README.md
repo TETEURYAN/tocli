@@ -15,11 +15,25 @@
 
 ## Sobre
 
-**Tocli** é um painel pessoal no terminal que reúne **Google Tasks**, **Google Calendar** e **métricas visuais** (contribution graph e progresso do ano). Interface totalmente por teclado, tema escuro, layout em painéis.
+**Tocli** reúne **Google Tasks**, **Google Calendar** e **métricas visuais** (contribution graph, daily rating e progresso do ano) num único painel de terminal — interface totalmente por teclado, tema escuro, layout em painéis.
 
-A integração com o Google usa o **SDK oficial** com **OAuth 2.0**, sem ferramentas de terceiros. Há um **modo offline** com dados fictícios para explorar a TUI sem credenciais.
+A integração com o Google usa o **SDK oficial** com **OAuth 2.0**, sem ferramentas de terceiros.
 
 ![Demonstração](assets/tocli-screen.png)
+
+---
+
+## Comece agora
+
+Sem credenciais, sem configuração — explora a TUI com dados fictícios:
+
+```bash
+git clone https://github.com/TETEURYAN/tocli.git
+cd tocli
+go run . -offline
+```
+
+Quer conectar sua conta Google de verdade? Veja [Uso](#uso).
 
 ---
 
@@ -31,6 +45,7 @@ A integração com o Google usa o **SDK oficial** com **OAuth 2.0**, sem ferrame
 | 📅 | **Agenda do dia** | Eventos de hoje com horário, título e local. Destaque para o evento em andamento e esmaecimento dos passados. |
 | 🗓️ | **Detalhe por dia** | Navegar pelo contribution graph mostra os eventos e tarefas concluídas daquele dia na agenda. |
 | 📊 | **Contribution graph** | Grade anual de tarefas concluídas por dia, com intensidade de cor proporcional ao volume — estilo GitHub. |
+| 🌈 | **Daily Rating Graph** | Segundo modo do gráfico (`g` alterna): atribua uma nota de 1 a 5 para cada dia (humor/produtividade), com cor interpolada de vermelho a verde, e escreva um texto livre sobre como foi o dia (`t`). Nota e texto persistem em disco e podem ser exportados em CSV mês a mês. |
 | 📈 | **Progresso do ano** | Percentual do ano decorrido, dia atual e dias restantes. |
 | 🔴 | **Prioridade** | Sistema de três níveis (Urgente / Importante / Normal) inferido automaticamente pelo nome da lista ou por prefixo no título da tarefa. |
 
@@ -55,17 +70,17 @@ go mod download
 
 ## Uso
 
-### Modo demo (sem Google)
+Esta seção cobre os três jeitos de rodar o Tocli — escolha o que corresponde ao seu caso.
 
-Explora a TUI com dados fictícios, sem nenhuma configuração:
+### Sem Google (modo demo)
+
+Já coberto em [Comece agora](#comece-agora): `go run . -offline`, ou compile o binário primeiro:
 
 ```bash
-go run .
-# ou
 go build -o tocli . && ./tocli -offline
 ```
 
-### Modo produção (com Google)
+### Com Google, binário pronto
 
 Se você recebeu um binário pré-compilado com as credenciais embutidas, apenas execute:
 
@@ -75,7 +90,7 @@ Se você recebeu um binário pré-compilado com as credenciais embutidas, apenas
 
 Na **primeira execução** o browser abre automaticamente para autenticação OAuth. Após aprovar, volte ao terminal — o token é salvo e renovado automaticamente nas execuções seguintes.
 
-### Para desenvolvedores
+### Com Google, compilando você mesmo
 
 Compile embutindo suas credenciais OAuth do Google Cloud Console:
 
@@ -86,7 +101,7 @@ go build \
   -o tocli .
 ```
 
-Guia completo: **[docs/GOOGLE.md](docs/GOOGLE.md)**
+Guia completo de setup OAuth: **[docs/GOOGLE.md](docs/GOOGLE.md)**
 
 ---
 
@@ -138,14 +153,24 @@ O campo de prazo aceita os formatos `DD-MM-YYYY` ou `DD-MM-YYYY HH:MM` (fuso loc
 |-------|------|
 | `↑` `↓` ou `k` `j` | Navegar entre eventos |
 
-### Painel de contribution graph
+### Painel de gráfico (contribution / daily rating)
 
 | Tecla | Ação |
 |-------|------|
 | `←` `→` ou `h` `l` | Navegar semana a semana |
 | `↑` `↓` ou `k` `j` | Navegar dia a dia |
+| `g` | Alternar entre **contribution graph** e **daily rating** |
+| `1`-`5` | *(modo daily rating)* Atribuir nota ao dia selecionado |
+| `t` | *(modo daily rating)* Escrever/editar um texto livre sobre o dia selecionado |
+| `e` | *(modo daily rating)* Exportar as notas e textos do mês exibido para CSV |
 
-Enquanto o cursor está sobre um dia no gráfico, a **agenda exibe os eventos e tarefas concluídas daquele dia** (não o dia atual).
+Enquanto o cursor está sobre um dia no gráfico, a **agenda exibe os eventos e tarefas concluídas daquele dia** (não o dia atual) — em ambos os modos.
+
+O **daily rating** é uma nota manual de 1 (vermelho) a 5 (verde) para humor/produtividade do dia, independente do Google — não sincroniza com nenhuma conta, apenas fica salva localmente (veja [Arquitetura](#arquitetura)).
+
+Pressionar `t` abre uma tela cheia com um campo de texto multi-linha (já preenchido com o texto existente, se houver) para descrever como foi o dia — `ctrl+s` salva, `esc` cancela. Quando o dia selecionado tem um texto salvo, o subtítulo do gráfico mostra `📝 has note`.
+
+A exportação (`e`) gera um arquivo `tocli-ratings-AAAA-MM.csv` no diretório atual, com uma linha por dia do mês (`data,nota,texto`) — nota em branco nos dias sem avaliação, texto em branco nos dias sem anotação.
 
 ---
 
@@ -177,40 +202,56 @@ Quando a prioridade é Normal, a tarefa exibe um marcador de categoria baseado n
 
 ## Arquitetura
 
+Para quem quer contribuir ou entender como o Tocli é montado por baixo dos panos:
+
 ```mermaid
 flowchart TB
     subgraph ui_layer["Interface — internal/ui"]
         UI["TUI · Bubble Tea\ncomponents · theme · keys"]
     end
     subgraph app_layer["Aplicação — internal/usecase"]
-        UC["Casos de uso\ntarefas · agenda · contribution · progresso do ano"]
+        UC["Casos de uso\ntarefas · agenda · contribution · daily rating · progresso do ano"]
     end
     subgraph domain_layer["Domínio — internal/domain"]
-        DM["Entidades Task, Event\ncontratos TaskRepository · EventRepository"]
+        DM["Entidades Task, Event, DailyRating\ncontratos TaskRepository · EventRepository · RatingRepository"]
     end
     subgraph infra_layer["Infraestrutura — internal/adapter"]
         MOCK["mock\n(fallback / testes)"]
         GOOGLE["google\nOAuth 2.0 + SDK oficial\nCalendar API · Tasks API"]
+        LOCAL["local\nRatingRepository → ratings.json"]
     end
 
     UI --> UC
     UC --> DM
     MOCK -.->|implementa| DM
     GOOGLE -.->|implementa| DM
+    LOCAL -.->|implementa| DM
 ```
 
-- **Domain** (`internal/domain`): entidades `Task`, `Event` e interfaces de repositório.
-- **Use cases** (`internal/usecase`): listar tarefas, eventos do dia, contribution graph, progresso do ano.
-- **Adapters** (`internal/adapter`): `mock` para desenvolvimento/offline; `google` para integração real via SDK.
+- **Domain** (`internal/domain`): entidades `Task`, `Event`, `DailyRating` e interfaces de repositório.
+- **Use cases** (`internal/usecase`): listar tarefas, eventos do dia, contribution graph, daily rating (+ exportação CSV), progresso do ano.
+- **Adapters** (`internal/adapter`): `mock` para desenvolvimento/offline; `google` para integração real via SDK; `local` para persistência das notas diárias (não sincroniza com Google).
 - **UI** (`internal/ui`): modelo Bubble Tea, componentes em `internal/ui/components`, tema em `internal/ui/theme`.
 
-> Nenhum banco de dados local é criado. Os dados de tarefas e eventos vivem no Google (ou na memória em modo mock). Apenas o **token OAuth** é salvo em disco (`~/.config/tocli/token.json`).
+> Nenhum banco de dados é criado. Tarefas e eventos vivem no Google (ou na memória em modo mock). O **token OAuth** é salvo em `~/.config/tocli/token.json` e as **notas do daily rating** em `~/.config/tocli/ratings.json` (em modo `-offline`, ficam apenas em memória com dados de exemplo).
 
 ---
 
 ## Contribuindo
 
-Contribuições são bem-vindas via issues e pull requests.
+Contribuições são bem-vindas via issues e pull requests:
+
+1. Abra uma issue descrevendo o bug ou a proposta antes de um PR grande, para alinhar o escopo.
+2. Para PRs: um branch por mudança, descrição do que foi feito e por quê.
+3. Não há suíte de testes automatizada no repositório ainda — se adicionar testes, siga a convenção padrão do Go (`_test.go` ao lado do código testado).
+
+---
+
+## Suporte
+
+Encontrou um bug ou tem uma dúvida? Abra uma [issue no GitHub](https://github.com/TETEURYAN/tocli/issues) — é o único canal de suporte do projeto no momento.
+
+---
 
 ## Referências
 

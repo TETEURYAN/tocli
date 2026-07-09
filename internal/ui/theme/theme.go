@@ -3,23 +3,25 @@ package theme
 import "github.com/charmbracelet/lipgloss"
 
 type Theme struct {
-	Base      lipgloss.Color
-	Surface   lipgloss.Color
-	Overlay   lipgloss.Color
-	Text      lipgloss.Color
-	Subtle    lipgloss.Color
-	Muted     lipgloss.Color
-	Primary   lipgloss.Color
-	Secondary lipgloss.Color
-	Accent    lipgloss.Color
-	Success   lipgloss.Color
-	Warning   lipgloss.Color
-	Error     lipgloss.Color
-	GraphLvl0 lipgloss.Color
-	GraphLvl1 lipgloss.Color
-	GraphLvl2 lipgloss.Color
-	GraphLvl3 lipgloss.Color
-	GraphLvl4 lipgloss.Color
+	Base       lipgloss.Color
+	Surface    lipgloss.Color
+	Overlay    lipgloss.Color
+	Text       lipgloss.Color
+	Subtle     lipgloss.Color
+	Muted      lipgloss.Color
+	Primary    lipgloss.Color
+	Secondary  lipgloss.Color
+	Accent     lipgloss.Color
+	Success    lipgloss.Color
+	Warning    lipgloss.Color
+	Error      lipgloss.Color
+	GraphLvl0  lipgloss.Color
+	GraphLvl1  lipgloss.Color
+	GraphLvl2  lipgloss.Color
+	GraphLvl3  lipgloss.Color
+	GraphLvl4  lipgloss.Color
+	RatingLow  lipgloss.Color
+	RatingHigh lipgloss.Color
 }
 
 var TokyoNight = Theme{
@@ -40,6 +42,11 @@ var TokyoNight = Theme{
 	GraphLvl2: lipgloss.Color("#2ea043"),
 	GraphLvl3: lipgloss.Color("#3fb950"),
 	GraphLvl4: lipgloss.Color("#56d364"),
+	// Deliberately more saturated than Error/Success (which stay muted for
+	// body text) — the rating scale needs to read as a strong red→green
+	// gradient at a glance, not a subtle tint.
+	RatingLow:  lipgloss.Color("#ef4444"),
+	RatingHigh: lipgloss.Color("#22c55e"),
 }
 
 var T = TokyoNight
