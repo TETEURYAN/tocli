@@ -19,6 +19,7 @@ type KeyMap struct {
 	NextList   key.Binding
 	DeleteTask key.Binding
 	ToggleGraphMode key.Binding
+	ExportCSV  key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -86,6 +87,10 @@ func DefaultKeyMap() KeyMap {
 		ToggleGraphMode: key.NewBinding(
 			key.WithKeys("g"),
 			key.WithHelp("g", "toggle graph mode"),
+		),
+		ExportCSV: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("e", "export month csv"),
 		),
 	}
 }

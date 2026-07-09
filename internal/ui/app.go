@@ -6,6 +6,7 @@ import (
 	"tocli/internal/ui/theme"
 	"tocli/internal/usecase"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -224,6 +225,7 @@ type Model struct {
 	ready      bool
 	loading    bool
 	err        error
+	notice     string
 	showHelp   bool
 
 	creatingTask            bool
@@ -265,6 +267,10 @@ type dayDetailLoadedMsg struct {
 
 type errMsg struct {
 	err error
+}
+
+type exportDoneMsg struct {
+	path string
 }
 
 type tickMsg time.Time
@@ -387,6 +393,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.loading = false
 		m.err = msg.err
+		m.notice = ""
+		return m, nil
+
+	case exportDoneMsg:
+		m.err = nil
+		m.notice = fmt.Sprintf("exported %s", msg.path)
 		return m, nil
 
 	case tickMsg:
@@ -460,6 +472,12 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.ToggleGraphMode):
 		if m.activePane == GraphPane {
 			m.contribution.ToggleMode()
+		}
+		return m, nil
+
+	case key.Matches(msg, m.keys.ExportCSV):
+		if m.activePane == GraphPane && m.contribution.Mode == components.ModeDaily {
+			return m, m.exportRatingsCSV()
 		}
 		return m, nil
 
@@ -733,6 +751,8 @@ func (m Model) renderStatusBar() string {
 		parts = append(parts, lipgloss.NewStyle().Foreground(theme.T.Warning).Render(" loading..."))
 	} else if m.err != nil {
 		parts = append(parts, lipgloss.NewStyle().Foreground(theme.T.Error).Render(fmt.Sprintf(" %v", m.err)))
+	} else if m.notice != "" {
+		parts = append(parts, lipgloss.NewStyle().Foreground(theme.T.Success).Render(" "+m.notice))
 	}
 
 	var helpKeys []struct{ key, desc string }
@@ -746,7 +766,7 @@ func (m Model) renderStatusBar() string {
 			{"q", "quit"},
 		}
 		if m.contribution.Mode == components.ModeDaily {
-			helpKeys = append([]struct{ key, desc string }{{"1-5", "rate"}}, helpKeys...)
+			helpKeys = append([]struct{ key, desc string }{{"e", "export"}, {"1-5", "rate"}}, helpKeys...)
 		}
 	case m.activePane == GraphPane:
 		helpKeys = []struct{ key, desc string }{
@@ -759,7 +779,7 @@ func (m Model) renderStatusBar() string {
 			{"q", "quit"},
 		}
 		if m.contribution.Mode == components.ModeDaily {
-			helpKeys = append([]struct{ key, desc string }{{"1-5", "rate day"}}, helpKeys...)
+			helpKeys = append([]struct{ key, desc string }{{"e", "export csv"}, {"1-5", "rate day"}}, helpKeys...)
 		}
 	case m.width < 92:
 		helpKeys = []struct{ key, desc string }{
@@ -819,6 +839,7 @@ func (m Model) renderHelp() string {
 		{"d then y/n", "Delete task (confirm)"},
 		{"g", "Toggle contribution/daily rating mode (graph pane)"},
 		{"1-5", "Rate selected day (graph pane, daily mode)"},
+		{"e", "Export month's ratings to CSV (graph pane, daily mode)"},
 		{"r", "Refresh data"},
 		{"?", "Toggle help"},
 		{"q / Ctrl+C", "Quit"},
@@ -881,6 +902,24 @@ func (m Model) setDayRating(date time.Time, score int) tea.Cmd {
 		}
 		data := m.ratingUC.Generate(date.Year())
 		return ratingLoadedMsg{data: data}
+	}
+}
+
+// exportRatingsCSV writes the currently viewed month's daily ratings (one row
+// per calendar day, blank score for unrated days) to a CSV file in the
+// working directory, named after that month.
+func (m Model) exportRatingsCSV() tea.Cmd {
+	date := m.contribution.CursorDate
+	return func() tea.Msg {
+		csvData, err := m.ratingUC.ExportMonthCSV(date.Year(), date.Month())
+		if err != nil {
+			return errMsg{err: err}
+		}
+		path := fmt.Sprintf("tocli-ratings-%s.csv", date.Format("2006-01"))
+		if err := os.WriteFile(path, csvData, 0644); err != nil {
+			return errMsg{err: fmt.Errorf("export failed: %w", err)}
+		}
+		return exportDoneMsg{path: path}
 	}
 }
 
