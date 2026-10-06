@@ -4,10 +4,10 @@
 
 ### Painel de produtividade no terminal — tarefas, agenda e métricas
 
-![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)
+![Go](https://img.shields.io/badge/Go-1.24%2B-00ADD8?logo=go&logoColor=white)
 ![TUI](https://img.shields.io/badge/TUI-Bubble%20Tea-FF75B7)
 ![License](https://img.shields.io/badge/License-MIT-purple)
-![Status](https://img.shields.io/badge/Status-v1.0.0-orange)
+![Status](https://img.shields.io/badge/Status-v1.2.0-orange)
 
 </div>
 
@@ -15,17 +15,35 @@
 
 ## Sobre
 
-**Tocli** reúne **Google Tasks**, **Google Calendar** e **métricas visuais** (contribution graph, daily rating e progresso do ano) num único painel de terminal — interface totalmente por teclado, tema escuro, layout em painéis.
-
-A integração com o Google usa o **SDK oficial** com **OAuth 2.0**, sem ferramentas de terceiros.
+O **Tocli** reúne **Google Tasks**, **Google Calendar** e métricas de produtividade (contribution graph, avaliação diária e progresso do ano) em um único painel de terminal. A interface é operada pelo teclado, com suporte a mouse, e a integração com o Google usa o SDK oficial com OAuth 2.0.
 
 ![Demonstração](assets/tocli-screen.png)
 
 ---
 
-## Comece agora
+## Funcionalidades
 
-Sem credenciais, sem configuração — explora a TUI com dados fictícios:
+- **Tarefas:** listar, criar, editar, concluir, reabrir e excluir, com sincronização com o Google Tasks e prioridade inferida automaticamente ([detalhes](docs/PRIORITY.md)).
+- **Agenda:** eventos do dia com horário e local, destaque para o evento em andamento e painel de detalhes com descrição e links (incluindo a videochamada).
+- **Busca e comandos:** uma barra de busca de eventos que vai para o centro da tela ao ser ativada. Com o prefixo `>`, ela executa ações do aplicativo pelo nome.
+- **Contribution graph:** grade anual de tarefas concluídas por dia, com navegação entre anos.
+- **Avaliação diária:** nota de 1 a 5 e anotação por dia, salvas localmente e exportáveis em CSV.
+- **Progresso do ano:** percentual decorrido, dia atual e dias restantes.
+- **Temas:** escuro e claro, com detecção automática do fundo do terminal.
+
+---
+
+## Requisitos
+
+- Go 1.24.2 ou superior ([go.dev/dl](https://go.dev/dl/)).
+- Terminal com suporte a cores. Recomenda-se largura de 100 colunas ou mais; abaixo de 68 colunas os painéis são empilhados.
+- Para o modo com Google: `git` e `go` no `PATH` (o `-update` compila a partir do código-fonte).
+
+---
+
+## Início rápido
+
+O modo `-offline` usa dados de exemplo e não exige credenciais:
 
 ```bash
 git clone https://github.com/TETEURYAN/tocli.git
@@ -33,233 +51,102 @@ cd tocli
 go run . -offline
 ```
 
-Quer conectar sua conta Google de verdade? Veja [Uso](#uso).
-
----
-
-## Funcionalidades
-
-| | Funcionalidade | Descrição |
-|---|---|---|
-| ✅ | **Lista de tarefas** | Tarefas abertas e concluídas de hoje; suporta criar, concluir, reabrir e excluir. Sincroniza com Google Tasks. |
-| 📅 | **Agenda do dia** | Eventos de hoje com horário, título e local. Destaque para o evento em andamento e esmaecimento dos passados. |
-| 🗓️ | **Detalhe por dia** | Navegar pelo contribution graph mostra os eventos e tarefas concluídas daquele dia na agenda. |
-| 📊 | **Contribution graph** | Grade anual de tarefas concluídas por dia, com intensidade de cor proporcional ao volume — estilo GitHub. |
-| 🌈 | **Daily Rating Graph** | Segundo modo do gráfico (`g` alterna): atribua uma nota de 1 a 5 para cada dia (humor/produtividade), com cor interpolada de vermelho a verde, e escreva um texto livre sobre como foi o dia (`t`). Nota e texto persistem em disco e podem ser exportados em CSV mês a mês. |
-| 📈 | **Progresso do ano** | Percentual do ano decorrido, dia atual e dias restantes. |
-| 🔴 | **Prioridade** | Sistema de três níveis (Urgente / Importante / Normal) inferido automaticamente pelo nome da lista ou por prefixo no título da tarefa. |
-
----
-
-## Pré-requisitos
-
-- **Go 1.22+** ([go.dev/dl](https://go.dev/dl/))
-- Terminal com suporte a cores e largura **≥ 100 colunas** recomendada (abaixo de 68 o layout muda para pilha vertical)
-
----
-
-## Instalação
+Para gerar o binário:
 
 ```bash
-git clone https://github.com/TETEURYAN/tocli.git
-cd tocli
-go mod download
+go build -o tocli .
+./tocli -offline
 ```
 
 ---
 
-## Uso
+## Uso com o Google
 
-Esta seção cobre os três jeitos de rodar o Tocli — escolha o que corresponde ao seu caso.
+O Tocli lê as credenciais OAuth de duas formas:
 
-### Sem Google (modo demo)
+1. **Embutidas no binário**, em tempo de compilação (recomendado para uso diário):
 
-Já coberto em [Comece agora](#comece-agora): `go run . -offline`, ou compile o binário primeiro:
+   ```bash
+   go build \
+     -ldflags "-X 'tocli/internal/adapter/google.clientID=SEU_CLIENT_ID' \
+               -X 'tocli/internal/adapter/google.clientSecret=SEU_CLIENT_SECRET'" \
+     -o tocli .
+   ```
 
-```bash
-go build -o tocli . && ./tocli -offline
-```
+2. **Arquivo local**, para desenvolvimento: `~/.config/tocli/credentials.json` (ou o caminho em `TOC_GOOGLE_CREDENTIALS`).
 
-### Com Google, binário pronto
-
-Se você recebeu um binário pré-compilado com as credenciais embutidas, apenas execute:
-
-```bash
-./tocli
-```
-
-Na **primeira execução** o browser abre automaticamente para autenticação OAuth. Após aprovar, volte ao terminal — o token é salvo e renovado automaticamente nas execuções seguintes.
-
-### Com Google, compilando você mesmo
-
-Compile embutindo suas credenciais OAuth do Google Cloud Console:
-
-```bash
-go build \
-  -ldflags "-X 'tocli/internal/adapter/google.clientID=SEU_CLIENT_ID' \
-            -X 'tocli/internal/adapter/google.clientSecret=SEU_CLIENT_SECRET'" \
-  -o tocli .
-```
-
-Guia completo de setup OAuth: **[docs/GOOGLE.md](docs/GOOGLE.md)**
+Na primeira execução o navegador abre para a autenticação. O token é salvo em `~/.config/tocli/token.json` e renovado automaticamente. O passo a passo da configuração no Google Cloud Console está em **[docs/GOOGLE.md](docs/GOOGLE.md)**.
 
 ---
 
-## Flags
+## Linha de comando
 
 | Flag | Descrição |
 |------|-----------|
-| `-offline` | Usa dados mock, sem chamar APIs do Google |
-| `-sync` | Valida a conexão com o Google e sai (sem TUI) |
-| `-version` | Exibe a versão atual e compara com a última release no GitHub |
-| `-update` | Baixa a tag mais recente e recompila o binário automaticamente |
+| `-offline` | Usa dados de exemplo, sem chamar as APIs do Google. |
+| `-sync` | Valida a conexão com o Google e encerra, sem abrir a interface. |
+| `-theme auto\|dark\|light` | Tema de cores. O padrão `auto` segue o fundo do terminal. |
+| `-version` | Exibe a versão, o commit de origem do binário e se há versão mais nova. |
+| `-update` | Compila a release mais recente e substitui o executável em uso. |
+
+O funcionamento do `-update` e as variáveis de ambiente estão em **[docs/CLI.md](docs/CLI.md)**.
 
 ---
 
-## Atalhos de teclado
-
-### Globais
+## Atalhos essenciais
 
 | Tecla | Ação |
 |-------|------|
-| `Tab` / `Shift+Tab` | Próximo / painel anterior |
-| `r` | Atualizar tarefas, eventos e gráfico |
-| `?` | Exibir / ocultar ajuda |
-| `q` / `Ctrl+C` | Sair |
+| `Tab` / `Shift+Tab` | Alternar entre os painéis |
+| `/` | Buscar eventos (digite `>` para listar comandos) |
+| `:` | Abrir a paleta de comandos |
+| `n` / `e` / `d` | Criar / editar / excluir tarefa (painel de tarefas) |
+| `Enter` | Concluir tarefa (tarefas) ou abrir detalhes do evento (agenda) |
+| `[` / `]` | Ano anterior / seguinte (painel do gráfico) |
+| `g` | Alternar entre contribution graph e avaliação diária |
+| `r` | Atualizar os dados |
+| `?` | Ajuda |
+| `q` | Sair |
 
-### Painel de tarefas
-
-| Tecla | Ação |
-|-------|------|
-| `↑` `↓` ou `k` `j` | Navegar na lista |
-| `Enter` ou `Espaço` | Concluir / reabrir tarefa selecionada |
-| `n` | Criar nova tarefa |
-| `d` → `y` | Excluir tarefa selecionada (pede confirmação; `n` ou `Esc` cancela) |
-
-### Criando uma tarefa (`n`)
-
-| Tecla | Ação |
-|-------|------|
-| `Tab` | Alternar foco entre campo **título** e campo **prazo** |
-| `[` `]` | Lista de destino anterior / próxima |
-| `Enter` | Confirmar e criar |
-| `Esc` | Cancelar |
-
-O campo de prazo aceita os formatos `DD-MM-YYYY` ou `DD-MM-YYYY HH:MM` (fuso local).
-
-### Painel de agenda
-
-| Tecla | Ação |
-|-------|------|
-| `↑` `↓` ou `k` `j` | Navegar entre eventos |
-
-### Painel de gráfico (contribution / daily rating)
-
-| Tecla | Ação |
-|-------|------|
-| `←` `→` ou `h` `l` | Navegar semana a semana |
-| `↑` `↓` ou `k` `j` | Navegar dia a dia |
-| `g` | Alternar entre **contribution graph** e **daily rating** |
-| `1`-`5` | *(modo daily rating)* Atribuir nota ao dia selecionado |
-| `t` | *(modo daily rating)* Escrever/editar um texto livre sobre o dia selecionado |
-| `e` | *(modo daily rating)* Exportar as notas e textos do mês exibido para CSV |
-
-Enquanto o cursor está sobre um dia no gráfico, a **agenda exibe os eventos e tarefas concluídas daquele dia** (não o dia atual) — em ambos os modos.
-
-O **daily rating** é uma nota manual de 1 (vermelho) a 5 (verde) para humor/produtividade do dia, independente do Google — não sincroniza com nenhuma conta, apenas fica salva localmente (veja [Arquitetura](#arquitetura)).
-
-Pressionar `t` abre uma tela cheia com um campo de texto multi-linha (já preenchido com o texto existente, se houver) para descrever como foi o dia — `ctrl+s` salva, `esc` cancela. Quando o dia selecionado tem um texto salvo, o subtítulo do gráfico mostra `📝 has note`.
-
-A exportação (`e`) gera um arquivo `tocli-ratings-AAAA-MM.csv` no diretório atual, com uma linha por dia do mês (`data,nota,texto`) — nota em branco nos dias sem avaliação, texto em branco nos dias sem anotação.
+A lista completa, com os atalhos de cada painel, a busca, os comandos e o mouse, está em **[docs/USAGE.md](docs/USAGE.md)**.
 
 ---
 
-## Sistema de prioridade
+## Documentação
 
-O Google Tasks não tem campo de prioridade nativo. O Tocli infere três níveis:
-
-| Nível | Marcador | Como definir |
-|-------|----------|--------------|
-| **Urgente** | `🔴` vermelho | Prefixe o título com `[U]` ou `🔴` |
-| **Importante** | `⭐` amarelo | Prefixe o título com `[I]`, `⭐` ou `★` |
-| **Normal** | marcador de categoria | Nenhum prefixo necessário |
-
-Se nenhum prefixo for usado, o nível é inferido a partir do **nome da lista** por palavras-chave (ex.: `urgente`, `asap`, `critical` → Urgente; `priority`, `focus`, `star` → Importante).
-
-### Categorias de lista
-
-Quando a prioridade é Normal, a tarefa exibe um marcador de categoria baseado no nome da lista:
-
-| Marcador | Categoria | Exemplos de nome de lista |
-|----------|-----------|--------------------------|
-| `W` | Trabalho | `work`, `trabalho`, `job` |
-| `J` | Job | `job`, `freelance` |
-| `P` | Pessoal | `personal`, `pessoal`, `life` |
-| `L` | Aprendizado | `learning`, `study`, `curso` |
-| `·` | Padrão | qualquer outro nome |
-
----
-
-## Arquitetura
-
-Para quem quer contribuir ou entender como o Tocli é montado por baixo dos panos:
-
-```mermaid
-flowchart TB
-    subgraph ui_layer["Interface — internal/ui"]
-        UI["TUI · Bubble Tea\ncomponents · theme · keys"]
-    end
-    subgraph app_layer["Aplicação — internal/usecase"]
-        UC["Casos de uso\ntarefas · agenda · contribution · daily rating · progresso do ano"]
-    end
-    subgraph domain_layer["Domínio — internal/domain"]
-        DM["Entidades Task, Event, DailyRating\ncontratos TaskRepository · EventRepository · RatingRepository"]
-    end
-    subgraph infra_layer["Infraestrutura — internal/adapter"]
-        MOCK["mock\n(fallback / testes)"]
-        GOOGLE["google\nOAuth 2.0 + SDK oficial\nCalendar API · Tasks API"]
-        LOCAL["local\nRatingRepository → ratings.json"]
-    end
-
-    UI --> UC
-    UC --> DM
-    MOCK -.->|implementa| DM
-    GOOGLE -.->|implementa| DM
-    LOCAL -.->|implementa| DM
-```
-
-- **Domain** (`internal/domain`): entidades `Task`, `Event`, `DailyRating` e interfaces de repositório.
-- **Use cases** (`internal/usecase`): listar tarefas, eventos do dia, contribution graph, daily rating (+ exportação CSV), progresso do ano.
-- **Adapters** (`internal/adapter`): `mock` para desenvolvimento/offline; `google` para integração real via SDK; `local` para persistência das notas diárias (não sincroniza com Google).
-- **UI** (`internal/ui`): modelo Bubble Tea, componentes em `internal/ui/components`, tema em `internal/ui/theme`.
-
-> Nenhum banco de dados é criado. Tarefas e eventos vivem no Google (ou na memória em modo mock). O **token OAuth** é salvo em `~/.config/tocli/token.json` e as **notas do daily rating** em `~/.config/tocli/ratings.json` (em modo `-offline`, ficam apenas em memória com dados de exemplo).
+| Documento | Conteúdo |
+|-----------|----------|
+| [docs/USAGE.md](docs/USAGE.md) | Atalhos de teclado e mouse, busca, paleta de comandos, tarefas, agenda e gráficos. |
+| [docs/CLI.md](docs/CLI.md) | Flags, atualização do binário e variáveis de ambiente. |
+| [docs/GOOGLE.md](docs/GOOGLE.md) | Configuração do OAuth no Google Cloud Console. |
+| [docs/PRIORITY.md](docs/PRIORITY.md) | Como a prioridade e a categoria das tarefas são definidas. |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Camadas, pacotes, interface e testes. |
+| [docs/VERSIONING.md](docs/VERSIONING.md) | Política de versões, tags e releases. |
+| [CHANGELOG.md](CHANGELOG.md) | Histórico de mudanças. |
 
 ---
 
 ## Contribuindo
 
-Contribuições são bem-vindas via issues e pull requests:
-
 1. Abra uma issue descrevendo o bug ou a proposta antes de um PR grande, para alinhar o escopo.
-2. Para PRs: um branch por mudança, descrição do que foi feito e por quê.
-3. Não há suíte de testes automatizada no repositório ainda — se adicionar testes, siga a convenção padrão do Go (`_test.go` ao lado do código testado).
+2. Trabalhe em uma branch por mudança (`feat/...`, `fix/...`) e abra o PR com o título no formato `TUI-NN: descrição`.
+3. Antes de enviar, execute `go build ./...`, `go vet ./...` e `go test ./...`.
+4. Novas versões seguem [docs/VERSIONING.md](docs/VERSIONING.md) e são registradas no [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
 ## Suporte
 
-Encontrou um bug ou tem uma dúvida? Abra uma [issue no GitHub](https://github.com/TETEURYAN/tocli/issues) — é o único canal de suporte do projeto no momento.
+Para relatar um problema ou tirar uma dúvida, abra uma [issue no GitHub](https://github.com/TETEURYAN/tocli/issues).
 
 ---
 
 ## Referências
 
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea)
-- [Lipgloss](https://github.com/charmbracelet/lipgloss)
-- [Bubbles](https://github.com/charmbracelet/bubbles)
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea), [Lip Gloss](https://github.com/charmbracelet/lipgloss) e [Bubbles](https://github.com/charmbracelet/bubbles) (Charm v2)
+- [BubbleZone](https://github.com/lrstanley/bubblezone)
 - [Google API Go Client](https://github.com/googleapis/google-api-go-client)
-- Inspiração visual: [Calcure](https://github.com/anufrievroman/calcure), contribution graphs estilo GitHub
+- Inspiração visual: [Calcure](https://github.com/anufrievroman/calcure) e os contribution graphs do GitHub
 
 ## Licença
 
