@@ -18,7 +18,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-var Version = "v1.2.0"
+var Version = "v2.0.0"
 
 func main() {
 	offline := flag.Bool("offline", false, "Use mock data only (no Google APIs)")

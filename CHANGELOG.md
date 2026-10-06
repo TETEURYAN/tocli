@@ -6,9 +6,11 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), e e
 
 ## [Unreleased]
 
-## [1.2.0] - 2026-10-06
+## [2.0.0] - 2026-10-06
 
 Adiciona busca de eventos, paleta de comandos, edição de tarefas, navegação entre anos e detalhes do evento. A interface foi migrada para o Charm v2, com layout em cartões, tema claro e suporte a mouse. O `-update` foi corrigido: ele atualizava apenas o número da versão, sem trazer o código novo.
+
+Esta é uma versão **major** porque há duas mudanças que exigem ação de quem compila o projeto ou implementa seus contratos: o **Go 1.24.2 passa a ser obrigatório** e a interface `domain.TaskRepository` **ganhou o método `UpdateTask`**. Para quem apenas usa o `tocli`, nada muda: nenhuma flag foi removida e os dados locais continuam compatíveis.
 
 ### Added
 
@@ -26,13 +28,13 @@ Adiciona busca de eventos, paleta de comandos, edição de tarefas, navegação 
 
 ### Changed
 
-- Interface migrada para Bubble Tea, Lip Gloss e Bubbles v2. **Requer Go 1.24.2 ou superior.**
+- **Incompatível:** interface migrada para Bubble Tea, Lip Gloss e Bubbles v2, o que **requer Go 1.24.2 ou superior**.
 - Layout calculado por uma função pura e testada: agenda, gráfico e progresso são cartões independentes, e os diálogos (formulários, ajuda, detalhes) são desenhados sobre o dashboard em vez de ocupar a tela inteira.
 - Estado de interação centralizado em um único modo, no lugar de vários booleanos. Com a ajuda aberta, apenas `?`, `Esc` e `q` agem.
 - Barra de atalhos baseada em `bubbles/help`, que reduz os atalhos por prioridade conforme a largura e mantém sempre ajuda e sair.
 - Dias sem atividade no gráfico aparecem como um ponto discreto, e o progresso do ano usa uma barra com gradiente.
 - A agenda rola acompanhando a seleção e indica quantos eventos estão visíveis.
-- `domain.TaskRepository` ganhou o método `UpdateTask`; implementações próprias do repositório precisam adicioná-lo.
+- **Incompatível:** `domain.TaskRepository` ganhou o método `UpdateTask`; implementações próprias do repositório precisam adicioná-lo.
 - O modo `-offline` ganhou eventos de exemplo passados e futuros, com links e descrição.
 - README reescrito de forma mais objetiva, com o conteúdo detalhado movido para `docs/` e a captura de tela em `docs/PREVIEW.md`.
 
@@ -48,7 +50,7 @@ Adiciona busca de eventos, paleta de comandos, edição de tarefas, navegação 
 **Pull Requests**
 - TUI-05: Add search, command palette, task editing, year navigation and event details by @TETEURYAN in https://github.com/TETEURYAN/tocli/pull/7
 
-**Full Changelog**: https://github.com/TETEURYAN/tocli/compare/v1.1.0...v1.2.0
+**Full Changelog**: https://github.com/TETEURYAN/tocli/compare/v1.1.0...v2.0.0
 
 ## [1.1.0] - 2026-07-09
 

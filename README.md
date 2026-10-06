@@ -7,7 +7,7 @@
 ![Go](https://img.shields.io/badge/Go-1.24%2B-00ADD8?logo=go&logoColor=white)
 ![TUI](https://img.shields.io/badge/TUI-Bubble%20Tea-FF75B7)
 ![License](https://img.shields.io/badge/License-MIT-purple)
-![Status](https://img.shields.io/badge/Status-v1.2.0-orange)
+![Status](https://img.shields.io/badge/Status-v2.0.0-orange)
 
 </div>
 

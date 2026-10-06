@@ -24,7 +24,7 @@ Na inicialização o Tocli verifica a conexão com o Google e faz a autenticaç�
 
 ```text
 $ tocli -version
-tocli v1.2.0 (commit 1a2b3c4)
+tocli v2.0.0 (commit 1a2b3c4)
 You are on the latest version.
 ```
 
