@@ -34,7 +34,7 @@ Adiciona busca de eventos, paleta de comandos, edição de tarefas, navegação 
 - A agenda rola acompanhando a seleção e indica quantos eventos estão visíveis.
 - `domain.TaskRepository` ganhou o método `UpdateTask`; implementações próprias do repositório precisam adicioná-lo.
 - O modo `-offline` ganhou eventos de exemplo passados e futuros, com links e descrição.
-- README reescrito de forma mais objetiva, com o conteúdo detalhado movido para `docs/`.
+- README reescrito de forma mais objetiva, com o conteúdo detalhado movido para `docs/` e a captura de tela em `docs/PREVIEW.md`.
 
 ### Fixed
 

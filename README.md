@@ -11,15 +11,9 @@
 
 </div>
 
----
-
 ## Sobre
 
-O **Tocli** reúne **Google Tasks**, **Google Calendar** e métricas de produtividade (contribution graph, avaliação diária e progresso do ano) em um único painel de terminal. A interface é operada pelo teclado, com suporte a mouse, e a integração com o Google usa o SDK oficial com OAuth 2.0.
-
-![Demonstração](assets/tocli-screen.png)
-
----
+O **Tocli** reúne **Google Tasks**, **Google Calendar** e métricas de produtividade (contribution graph, avaliação diária e progresso do ano) em um único painel de terminal. A interface é operada pelo teclado, com suporte a mouse, e a integração com o Google usa o SDK oficial com OAuth 2.0. Veja a [pré-visualização](docs/PREVIEW.md).
 
 ## Funcionalidades
 
@@ -31,15 +25,11 @@ O **Tocli** reúne **Google Tasks**, **Google Calendar** e métricas de produtiv
 - **Progresso do ano:** percentual decorrido, dia atual e dias restantes.
 - **Temas:** escuro e claro, com detecção automática do fundo do terminal.
 
----
-
 ## Requisitos
 
 - Go 1.24.2 ou superior ([go.dev/dl](https://go.dev/dl/)).
 - Terminal com suporte a cores. Recomenda-se largura de 100 colunas ou mais; abaixo de 68 colunas os painéis são empilhados.
-- Para o modo com Google: `git` e `go` no `PATH` (o `-update` compila a partir do código-fonte).
-
----
+- `git` e `go` no `PATH` para usar o `-update`, que compila a partir do código-fonte.
 
 ## Início rápido
 
@@ -51,33 +41,20 @@ cd tocli
 go run . -offline
 ```
 
-Para gerar o binário:
-
-```bash
-go build -o tocli .
-./tocli -offline
-```
-
----
+Para gerar o binário: `go build -o tocli .`
 
 ## Uso com o Google
 
-O Tocli lê as credenciais OAuth de duas formas:
+As credenciais OAuth podem ser **embutidas no binário** na compilação (recomendado para o uso diário) ou lidas de um **arquivo local** (`~/.config/tocli/credentials.json`, ou o caminho em `TOC_GOOGLE_CREDENTIALS`), útil no desenvolvimento.
 
-1. **Embutidas no binário**, em tempo de compilação (recomendado para uso diário):
+```bash
+go build \
+  -ldflags "-X 'tocli/internal/adapter/google.clientID=SEU_CLIENT_ID' \
+            -X 'tocli/internal/adapter/google.clientSecret=SEU_CLIENT_SECRET'" \
+  -o tocli .
+```
 
-   ```bash
-   go build \
-     -ldflags "-X 'tocli/internal/adapter/google.clientID=SEU_CLIENT_ID' \
-               -X 'tocli/internal/adapter/google.clientSecret=SEU_CLIENT_SECRET'" \
-     -o tocli .
-   ```
-
-2. **Arquivo local**, para desenvolvimento: `~/.config/tocli/credentials.json` (ou o caminho em `TOC_GOOGLE_CREDENTIALS`).
-
-Na primeira execução o navegador abre para a autenticação. O token é salvo em `~/.config/tocli/token.json` e renovado automaticamente. O passo a passo da configuração no Google Cloud Console está em **[docs/GOOGLE.md](docs/GOOGLE.md)**.
-
----
+Na primeira execução o navegador abre para a autenticação; o token é salvo em `~/.config/tocli/token.json` e renovado automaticamente. A configuração no Google Cloud Console está em [docs/GOOGLE.md](docs/GOOGLE.md).
 
 ## Linha de comando
 
@@ -89,9 +66,7 @@ Na primeira execução o navegador abre para a autenticação. O token é salvo 
 | `-version` | Exibe a versão, o commit de origem do binário e se há versão mais nova. |
 | `-update` | Compila a release mais recente e substitui o executável em uso. |
 
-O funcionamento do `-update` e as variáveis de ambiente estão em **[docs/CLI.md](docs/CLI.md)**.
-
----
+Detalhes do `-update` e variáveis de ambiente em [docs/CLI.md](docs/CLI.md).
 
 ## Atalhos essenciais
 
@@ -108,9 +83,7 @@ O funcionamento do `-update` e as variáveis de ambiente estão em **[docs/CLI.m
 | `?` | Ajuda |
 | `q` | Sair |
 
-A lista completa, com os atalhos de cada painel, a busca, os comandos e o mouse, está em **[docs/USAGE.md](docs/USAGE.md)**.
-
----
+A lista completa, incluindo o mouse, está em [docs/USAGE.md](docs/USAGE.md).
 
 ## Documentação
 
@@ -122,24 +95,16 @@ A lista completa, com os atalhos de cada painel, a busca, os comandos e o mouse,
 | [docs/PRIORITY.md](docs/PRIORITY.md) | Como a prioridade e a categoria das tarefas são definidas. |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Camadas, pacotes, interface e testes. |
 | [docs/VERSIONING.md](docs/VERSIONING.md) | Política de versões, tags e releases. |
+| [docs/PREVIEW.md](docs/PREVIEW.md) | Captura de tela. |
 | [CHANGELOG.md](CHANGELOG.md) | Histórico de mudanças. |
 
----
+## Contribuindo e suporte
 
-## Contribuindo
+Abra uma [issue](https://github.com/TETEURYAN/tocli/issues) para relatar um problema, tirar uma dúvida ou propor uma mudança, de preferência antes de um PR grande, para alinhar o escopo.
 
-1. Abra uma issue descrevendo o bug ou a proposta antes de um PR grande, para alinhar o escopo.
-2. Trabalhe em uma branch por mudança (`feat/...`, `fix/...`) e abra o PR com o título no formato `TUI-NN: descrição`.
-3. Antes de enviar, execute `go build ./...`, `go vet ./...` e `go test ./...`.
-4. Novas versões seguem [docs/VERSIONING.md](docs/VERSIONING.md) e são registradas no [CHANGELOG.md](CHANGELOG.md).
-
----
-
-## Suporte
-
-Para relatar um problema ou tirar uma dúvida, abra uma [issue no GitHub](https://github.com/TETEURYAN/tocli/issues).
-
----
+1. Trabalhe em uma branch por mudança (`feat/...`, `fix/...`) e abra o PR com o título no formato `TUI-NN: descrição`.
+2. Antes de enviar, execute `go build ./...`, `go vet ./...` e `go test ./...`.
+3. Novas versões seguem [docs/VERSIONING.md](docs/VERSIONING.md) e são registradas no [CHANGELOG.md](CHANGELOG.md).
 
 ## Referências
 
