@@ -96,6 +96,26 @@ func (r *TaskRepo) CreateTask(listID, title string, due *time.Time) (domain.Task
 	return task, nil
 }
 
+func (r *TaskRepo) UpdateTask(taskID, listID, title string, due *time.Time) (domain.Task, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return domain.Task{}, domain.ErrEmptyTaskTitle
+	}
+	tasks, ok := r.tasks[listID]
+	if !ok {
+		return domain.Task{}, fmt.Errorf("list %s not found", listID)
+	}
+	for i := range tasks {
+		if tasks[i].ID == taskID {
+			tasks[i].Title = title
+			tasks[i].DueDate = due
+			r.tasks[listID] = tasks
+			return tasks[i], nil
+		}
+	}
+	return domain.Task{}, fmt.Errorf("task %s not found", taskID)
+}
+
 func (r *TaskRepo) DeleteTask(taskID, listID string) error {
 	tasks, ok := r.tasks[listID]
 	if !ok {

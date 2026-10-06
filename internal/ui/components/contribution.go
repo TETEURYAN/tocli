@@ -2,12 +2,14 @@ package components
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 	"tocli/internal/ui/theme"
 	"tocli/internal/usecase"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
+	zone "github.com/lrstanley/bubblezone/v2"
 )
 
 type monthInfo struct {
@@ -103,7 +105,9 @@ type ContributionModel struct {
 	Height     int
 	Focused    bool
 	CursorDate time.Time
-	styles     theme.Styles
+	// Loading is true between switching to another year and its data arriving.
+	Loading bool
+	styles  theme.Styles
 }
 
 func NewContributionModel(s theme.Styles) ContributionModel {
@@ -121,6 +125,15 @@ func (m *ContributionModel) ToggleMode() {
 	} else {
 		m.Mode = ModeContribution
 	}
+}
+
+// SetYear switches the graph to another year right away, with empty data (shown as "loading…")
+// until the real data for that year arrives.
+func (m *ContributionModel) SetYear(year int, cursor time.Time) {
+	m.Data = usecase.ContributionData{Year: year, DayCounts: map[string]int{}}
+	m.RatingData = usecase.RatingData{Year: year, DayScores: map[string]int{}, DayNotes: map[string]string{}}
+	m.CursorDate = cursor
+	m.Loading = true
 }
 
 func (m ContributionModel) SelectedDate() time.Time {
@@ -289,10 +302,10 @@ func (m ContributionModel) renderDayRows(lp gridLayoutParams, cellFn func(dt tim
 				}
 				isCursor := m.Focused && mo == curMo && wc == curWC && wd == curWD
 				if isCursor {
-					row.WriteString(lipgloss.NewStyle().
-						Foreground(theme.T.Primary).Bold(true).Render("◆"))
+					row.WriteString(zone.Mark(zoneDay(dt), lipgloss.NewStyle().
+						Foreground(m.styles.T.Primary).Bold(true).Render("◆")))
 				} else {
-					row.WriteString(cellFn(dt))
+					row.WriteString(zone.Mark(zoneDay(dt), cellFn(dt)))
 				}
 			}
 			if lp.useGaps && mo < lp.endMonth-1 {
@@ -314,9 +327,10 @@ func (m ContributionModel) viewContribution() string {
 	year := m.cursorYear()
 	lp := m.computeGridLayout()
 
-	showSubtitle := m.Height >= 7
-	showMonth := m.Height >= 8
-	showLegend := m.Height >= 11
+	// Rows: title + 7 weekdays = 8; +subtitle = 9; +blank & month header = 11; +blank & legend = 13.
+	showSubtitle := m.Height >= 9
+	showMonth := m.Height >= 11
+	showLegend := m.Height >= 13
 
 	var lines []string
 
@@ -327,12 +341,12 @@ func (m ContributionModel) viewContribution() string {
 		if m.Focused {
 			dateStr := m.CursorDate.Format("Mon, Jan 2")
 			count := m.dayCount(m.CursorDate)
-			sub := s.Subtitle.Render(fmt.Sprintf("  %d tasks this year", m.Data.Total)) +
-				"  " + lipgloss.NewStyle().Foreground(theme.T.Primary).Bold(true).Render("▸ "+dateStr) +
+			sub := s.Subtitle.Render(m.totalLine("  %d tasks this year")) +
+				"  " + lipgloss.NewStyle().Foreground(m.styles.T.Primary).Bold(true).Render("▸ "+dateStr) +
 				" " + s.Dim.Render(fmt.Sprintf("· %d tasks", count))
 			lines = append(lines, sub)
 		} else {
-			lines = append(lines, s.Subtitle.Render(fmt.Sprintf("  %d tasks completed this year", m.Data.Total)))
+			lines = append(lines, s.Subtitle.Render(m.totalLine("  %d tasks completed this year")))
 		}
 	}
 
@@ -358,9 +372,10 @@ func (m ContributionModel) viewDaily() string {
 	year := m.cursorYear()
 	lp := m.computeGridLayout()
 
-	showSubtitle := m.Height >= 7
-	showMonth := m.Height >= 8
-	showLegend := m.Height >= 11
+	// Rows: title + 7 weekdays = 8; +subtitle = 9; +blank & month header = 11; +blank & legend = 13.
+	showSubtitle := m.Height >= 9
+	showMonth := m.Height >= 11
+	showLegend := m.Height >= 13
 
 	var lines []string
 
@@ -379,7 +394,7 @@ func (m ContributionModel) viewDaily() string {
 				noteStr = " " + s.Dim.Render("· 📝 has note")
 			}
 			sub := s.Subtitle.Render("  press 1-5 to rate, t for note") +
-				"  " + lipgloss.NewStyle().Foreground(theme.T.Primary).Bold(true).Render("▸ "+dateStr) +
+				"  " + lipgloss.NewStyle().Foreground(m.styles.T.Primary).Bold(true).Render("▸ "+dateStr) +
 				" " + s.Dim.Render("· "+ratingStr) + noteStr
 			lines = append(lines, sub)
 		} else {
@@ -404,23 +419,41 @@ func (m ContributionModel) viewDaily() string {
 	return strings.Join(lines, "\n")
 }
 
+// totalLine formats the year total, or says the data is still loading.
+func (m ContributionModel) totalLine(format string) string {
+	if m.Loading {
+		return "  loading " + fmt.Sprint(m.cursorYear()) + "…"
+	}
+	return fmt.Sprintf(format, m.Data.Total)
+}
+
 func (m ContributionModel) renderCell(count int) string {
 	level := m.getLevel(count)
-	var color lipgloss.Color
+	var c color.Color
 	switch level {
 	case 0:
-		color = theme.T.GraphLvl0
+		c = m.styles.T.GraphLvl0
 	case 1:
-		color = theme.T.GraphLvl1
+		c = m.styles.T.GraphLvl1
 	case 2:
-		color = theme.T.GraphLvl2
+		c = m.styles.T.GraphLvl2
 	case 3:
-		color = theme.T.GraphLvl3
+		c = m.styles.T.GraphLvl3
 	default:
-		color = theme.T.GraphLvl4
+		c = m.styles.T.GraphLvl4
 	}
-	return lipgloss.NewStyle().Foreground(color).Render("█")
+	if level == 0 {
+		// Empty days are a faint dot so the active days stand out instead of the whole grid
+		// reading as a wall of blocks.
+		return lipgloss.NewStyle().Foreground(c).Render(emptyCell)
+	}
+	return lipgloss.NewStyle().Foreground(c).Render(filledCell)
 }
+
+const (
+	filledCell = "█"
+	emptyCell  = "·"
+)
 
 func (m ContributionModel) getLevel(count int) int {
 	if count == 0 {
@@ -444,7 +477,11 @@ func (m ContributionModel) getLevel(count int) int {
 }
 
 func (m ContributionModel) renderRatingCell(score int) string {
-	return lipgloss.NewStyle().Foreground(theme.RatingColor(score)).Render("█")
+	glyph := filledCell
+	if score < 1 || score > 5 {
+		glyph = emptyCell // unrated
+	}
+	return lipgloss.NewStyle().Foreground(m.styles.T.RatingColor(score)).Render(glyph)
 }
 
 func (m ContributionModel) renderRatingLegend(compact bool) string {

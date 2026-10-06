@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"time"
+
+	"tocli/internal/platform"
 
 	"golang.org/x/oauth2"
 	googleoauth "golang.org/x/oauth2/google"
@@ -194,7 +194,7 @@ func runOAuthFlow(ctx context.Context, cfg *oauth2.Config) (*oauth2.Token, error
 
 	authURL := cfg.AuthCodeURL("state", oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 
-	fmt.Fprintln(os.Stderr, authBanner)
+	fmt.Fprint(os.Stderr, authBanner+"\n")
 	if err := openBrowser(authURL); err != nil {
 		// Browser could not be opened automatically; show URL for manual copy.
 		fmt.Fprintf(os.Stderr, "  Could not open browser automatically.\n  Copy and paste this URL:\n\n  %s\n\n", authURL)
@@ -209,7 +209,7 @@ func runOAuthFlow(ctx context.Context, cfg *oauth2.Config) (*oauth2.Token, error
 		if err != nil {
 			return nil, fmt.Errorf("exchange code: %w", err)
 		}
-		fmt.Fprintln(os.Stderr, "  ✓ Authentication successful! Starting tocli...\n")
+		fmt.Fprint(os.Stderr, "  ✓ Authentication successful! Starting tocli...\n\n")
 		return tok, nil
 	case err := <-errCh:
 		return nil, err
@@ -220,22 +220,7 @@ func runOAuthFlow(ctx context.Context, cfg *oauth2.Config) (*oauth2.Token, error
 
 // openBrowser tries to open url in the user's default browser.
 func openBrowser(url string) error {
-	var cmd string
-	var args []string
-	switch runtime.GOOS {
-	case "linux":
-		cmd = "xdg-open"
-		args = []string{url}
-	case "darwin":
-		cmd = "open"
-		args = []string{url}
-	case "windows":
-		cmd = "rundll32"
-		args = []string{"url.dll,FileProtocolHandler", url}
-	default:
-		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
-	}
-	return exec.Command(cmd, args...).Start()
+	return platform.OpenURL(url)
 }
 
 const authBanner = `

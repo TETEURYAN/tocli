@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/charmbracelet/bubbles/key"
+import "charm.land/bubbles/v2/key"
 
 type KeyMap struct {
 	Up        key.Binding
@@ -21,6 +21,19 @@ type KeyMap struct {
 	ToggleGraphMode key.Binding
 	ExportCSV  key.Binding
 	WriteNote  key.Binding
+	Search     key.Binding
+	Command    key.Binding
+	EditTask   key.Binding
+	PrevYear   key.Binding
+	NextYear   key.Binding
+
+	// Display-only groupings for the status bar hints (the real bindings above do the work).
+	Navigate key.Binding
+	Details  key.Binding
+	YearNav  key.Binding
+	WeekNav  key.Binding
+	DayNav   key.Binding
+	Rate     key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -43,7 +56,7 @@ func DefaultKeyMap() KeyMap {
 		),
 		Tab: key.NewBinding(
 			key.WithKeys("tab"),
-			key.WithHelp("tab", "next pane"),
+			key.WithHelp("tab", "switch pane"),
 		),
 		ShiftTab: key.NewBinding(
 			key.WithKeys("shift+tab"),
@@ -55,7 +68,7 @@ func DefaultKeyMap() KeyMap {
 		),
 		Space: key.NewBinding(
 			key.WithKeys(" "),
-			key.WithHelp("space", "toggle task"),
+			key.WithHelp("space", "done/reopen"),
 		),
 		Refresh: key.NewBinding(
 			key.WithKeys("r"),
@@ -83,19 +96,63 @@ func DefaultKeyMap() KeyMap {
 		),
 		DeleteTask: key.NewBinding(
 			key.WithKeys("d"),
-			key.WithHelp("d", "delete task"),
+			key.WithHelp("d", "delete"),
 		),
 		ToggleGraphMode: key.NewBinding(
 			key.WithKeys("g"),
-			key.WithHelp("g", "toggle graph mode"),
+			key.WithHelp("g", "toggle mode"),
 		),
 		ExportCSV: key.NewBinding(
 			key.WithKeys("e"),
-			key.WithHelp("e", "export month csv"),
+			key.WithHelp("e", "export csv"),
 		),
 		WriteNote: key.NewBinding(
 			key.WithKeys("t"),
-			key.WithHelp("t", "write day note"),
+			key.WithHelp("t", "day note"),
+		),
+		PrevYear: key.NewBinding(
+			key.WithKeys("["),
+			key.WithHelp("[", "previous year"),
+		),
+		NextYear: key.NewBinding(
+			key.WithKeys("]"),
+			key.WithHelp("]", "next year"),
+		),
+		Details: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "details"),
+		),
+		YearNav: key.NewBinding(
+			key.WithKeys("[", "]"),
+			key.WithHelp("[ ]", "year"),
+		),
+		EditTask: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("e", "edit"),
+		),
+		Command: key.NewBinding(
+			key.WithKeys(":"),
+			key.WithHelp(":", "commands"),
+		),
+		Search: key.NewBinding(
+			key.WithKeys("/"),
+			key.WithHelp("/", "search"),
+		),
+		Navigate: key.NewBinding(
+			key.WithKeys("up", "down", "k", "j"),
+			key.WithHelp("↑↓/jk", "navigate"),
+		),
+		WeekNav: key.NewBinding(
+			key.WithKeys("left", "right", "h", "l"),
+			key.WithHelp("←→", "week"),
+		),
+		DayNav: key.NewBinding(
+			key.WithKeys("up", "down", "k", "j"),
+			key.WithHelp("↑↓", "day"),
+		),
+		Rate: key.NewBinding(
+			key.WithKeys("1", "2", "3", "4", "5"),
+			key.WithHelp("1-5", "rate day"),
 		),
 	}
 }

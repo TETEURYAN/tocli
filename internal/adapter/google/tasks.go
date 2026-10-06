@@ -80,13 +80,35 @@ func (r *TaskRepo) ReopenTask(taskID, listID string) error {
 func (r *TaskRepo) CreateTask(listID, title string, due *time.Time) (domain.Task, error) {
 	newTask := &tasks.Task{Title: title}
 	if due != nil {
-		newTask.Due = due.UTC().Format(time.RFC3339)
+		newTask.Due = dueForGoogle(*due)
 	}
 	created, err := r.svc.Tasks.Insert(listID, newTask).Context(r.ctx).Do()
 	if err != nil {
 		return domain.Task{}, wrapAPIError("create task", err)
 	}
 	return mapGoogleTaskToDomain(created, listID), nil
+}
+
+func (r *TaskRepo) UpdateTask(taskID, listID, title string, due *time.Time) (domain.Task, error) {
+	patch := &tasks.Task{Title: title}
+	if due != nil {
+		patch.Due = dueForGoogle(*due)
+	} else {
+		patch.NullFields = []string{"Due"}
+	}
+	updated, err := r.svc.Tasks.Patch(listID, taskID, patch).Context(r.ctx).Do()
+	if err != nil {
+		return domain.Task{}, wrapAPIError("update task", err)
+	}
+	return mapGoogleTaskToDomain(updated, listID), nil
+}
+
+// dueForGoogle converts a local due time to what Google Tasks stores: the calendar date at
+// midnight UTC. The API keeps only the date (the time of day is discarded), so the date has to be
+// taken in the user's zone first; converting the instant to UTC could move it to another day.
+func dueForGoogle(t time.Time) string {
+	d := t.In(time.Local)
+	return time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC).Format(time.RFC3339)
 }
 
 func (r *TaskRepo) DeleteTask(taskID, listID string) error {
