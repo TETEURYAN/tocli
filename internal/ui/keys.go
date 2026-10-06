@@ -67,7 +67,8 @@ func DefaultKeyMap() KeyMap {
 			key.WithHelp("enter", "confirm"),
 		),
 		Space: key.NewBinding(
-			key.WithKeys(" "),
+			// Bubble Tea v2 names the space bar "space" (v1 used " ").
+			key.WithKeys("space"),
 			key.WithHelp("space", "done/reopen"),
 		),
 		Refresh: key.NewBinding(

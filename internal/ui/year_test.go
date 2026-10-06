@@ -189,7 +189,7 @@ func TestCursorStaysInsideTheViewedYear(t *testing.T) {
 	y := m.graphYear
 	m.contribution.CursorDate = time.Date(y, 12, 31, 0, 0, 0, 0, time.Local)
 	for i := 0; i < 3; i++ {
-		next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+		next, _ := m.Update(termKey(t, "right"))
 		m = asModel(t, next)
 	}
 	if m.contribution.CursorDate.Year() != y {

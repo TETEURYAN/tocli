@@ -32,19 +32,12 @@ func asModel(t *testing.T, v tea.Model) Model {
 	return Model{}
 }
 
+// press sends one key the way a terminal would: the named key (or character) is encoded as the
+// bytes a real terminal sends and decoded by Bubble Tea's own decoder. Hand-built KeyPressMsg
+// values skip that step and can disagree with what real keys look like (the space bar once did).
 func press(t *testing.T, m Model, s string) (Model, tea.Cmd) {
 	t.Helper()
-	k := tea.KeyPressMsg{Text: s}
-	if len(s) == 1 {
-		k.Code = rune(s[0])
-	}
-	switch s {
-	case "esc":
-		k = tea.KeyPressMsg{Code: tea.KeyEscape}
-	case "tab":
-		k = tea.KeyPressMsg{Code: tea.KeyTab}
-	}
-	next, cmd := m.Update(k)
+	next, cmd := m.Update(termKey(t, s))
 	return asModel(t, next), cmd
 }
 
