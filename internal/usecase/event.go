@@ -32,3 +32,9 @@ func (uc *EventUseCase) GetEventsForDate(date time.Time) ([]domain.Event, error)
 	end := start.Add(24 * time.Hour)
 	return uc.repo.GetEvents(start, end)
 }
+
+// GetEventsInRange returns every event starting in [start, end). It backs the search palette,
+// which loads a wide window once and filters it in memory.
+func (uc *EventUseCase) GetEventsInRange(start, end time.Time) ([]domain.Event, error) {
+	return uc.repo.GetEvents(start, end)
+}

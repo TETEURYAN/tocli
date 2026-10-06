@@ -24,7 +24,11 @@ func mapGoogleTaskToDomain(t *tasks.Task, listID string) domain.Task {
 
 	if t.Due != "" {
 		if parsed, err := time.Parse(time.RFC3339, t.Due); err == nil {
-			dt.DueDate = &parsed
+			// Google sends the due date as midnight UTC. Keep the calendar date and put it at
+			// local midnight; converting the instant would show e.g. "21:00 of the day before".
+			p := parsed.UTC()
+			local := time.Date(p.Year(), p.Month(), p.Day(), 0, 0, 0, 0, time.Local)
+			dt.DueDate = &local
 		}
 	}
 
@@ -44,6 +48,8 @@ func mapGoogleEventToDomain(e *calendar.Event) (domain.Event, error) {
 		Title:       e.Summary,
 		Description: e.Description,
 		Location:    e.Location,
+		URL:         e.HtmlLink,
+		MeetLink:    meetLink(e),
 	}
 
 	if e.Start == nil {
@@ -92,6 +98,22 @@ func mapGoogleEventToDomain(e *calendar.Event) (domain.Event, error) {
 	}
 
 	return ev, nil
+}
+
+// meetLink is the event's video-call link: the classic Hangouts field, or the first video entry
+// point of its conference data.
+func meetLink(e *calendar.Event) string {
+	if e.HangoutLink != "" {
+		return e.HangoutLink
+	}
+	if e.ConferenceData != nil {
+		for _, ep := range e.ConferenceData.EntryPoints {
+			if ep != nil && ep.EntryPointType == "video" && ep.Uri != "" {
+				return ep.Uri
+			}
+		}
+	}
+	return ""
 }
 
 func ptrStr(s *string) string {

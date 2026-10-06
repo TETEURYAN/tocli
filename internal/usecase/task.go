@@ -38,6 +38,15 @@ func (uc *TaskUseCase) CreateTask(listID, title string, due *time.Time) (domain.
 	return uc.repo.CreateTask(listID, t, due)
 }
 
+// UpdateTask changes a task's title and due date (nil clears the due date).
+func (uc *TaskUseCase) UpdateTask(taskID, listID, title string, due *time.Time) (domain.Task, error) {
+	t := strings.TrimSpace(title)
+	if t == "" {
+		return domain.Task{}, domain.ErrEmptyTaskTitle
+	}
+	return uc.repo.UpdateTask(taskID, listID, t, due)
+}
+
 func (uc *TaskUseCase) DeleteTask(taskID, listID string) error {
 	return uc.repo.DeleteTask(taskID, listID)
 }

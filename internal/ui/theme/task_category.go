@@ -1,9 +1,8 @@
 package theme
 
 import (
+	"image/color"
 	"strings"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 type ListCategory int
@@ -44,18 +43,18 @@ func classifyListName(name string) ListCategory {
 }
 
 // ListCategoryAccent is the list-type color used for the task marker and title.
-func ListCategoryAccent(name string) lipgloss.Color {
+func (t Theme) ListCategoryAccent(name string) color.Color {
 	switch classifyListName(name) {
 	case ListCatWork:
-		return T.Primary
+		return t.Primary
 	case ListCatJob:
-		return T.Warning
+		return t.Warning
 	case ListCatPersonal:
-		return T.Success
+		return t.Success
 	case ListCatLearning:
-		return T.Secondary
+		return t.Secondary
 	default:
-		return T.Subtle
+		return t.Subtle
 	}
 }
 

@@ -8,6 +8,8 @@ type TaskRepository interface {
 	CompleteTask(taskID, listID string) error
 	ReopenTask(taskID, listID string) error
 	CreateTask(listID, title string, due *time.Time) (Task, error)
+	// UpdateTask replaces a task's title and due date; a nil due clears it.
+	UpdateTask(taskID, listID, title string, due *time.Time) (Task, error)
 	DeleteTask(taskID, listID string) error
 }
 

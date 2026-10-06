@@ -6,6 +6,52 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), e e
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-06
+
+Adiciona busca de eventos, paleta de comandos, edição de tarefas, navegação entre anos e detalhes do evento. A interface foi migrada para o Charm v2, com layout em cartões, tema claro e suporte a mouse. O `-update` foi corrigido: ele atualizava apenas o número da versão, sem trazer o código novo.
+
+Esta é uma versão **major** porque há duas mudanças que exigem ação de quem compila o projeto ou implementa seus contratos: o **Go 1.24.2 passa a ser obrigatório** e a interface `domain.TaskRepository` **ganhou o método `UpdateTask`**. Para quem apenas usa o `tocli`, nada muda: nenhuma flag foi removida e os dados locais continuam compatíveis.
+
+### Added
+
+- **Busca de eventos** (`/` ou clique na caixa acima da agenda): a barra vai até o centro da tela e os resultados aparecem abaixo. Cobre de 12 meses atrás a 12 meses à frente, ignora maiúsculas e acentos, exige todos os termos e procura em título, local e descrição. `Enter` leva ao dia do evento (mudando o ano do gráfico, se preciso) e `Tab` abre os detalhes.
+- **Paleta de comandos** (`:` ou `>` na busca): executa ações pelo nome (nova tarefa, editar, concluir, excluir, ir para hoje, trocar de ano, alternar o gráfico, foco dos painéis, tema, atualizar, ajuda, sair). Comandos que não se aplicam ao momento ficam ocultos.
+- **Edição de tarefas** (`e` no painel de tarefas): altera título e prazo; prazo vazio remove o prazo. A lista é reordenada e o cursor permanece na tarefa editada.
+- **Navegação entre anos** no gráfico (`[` e `]`): o ano aparece na hora e os dados são buscados quando a navegação para, descartando respostas atrasadas.
+- **Detalhes do evento** (`Enter` na agenda, clique no evento, `Tab` na busca ou pela paleta): data, horário, duração, local, descrição com rolagem e links numerados. `o` e `1`-`9` abrem os links no navegador, incluindo a videochamada do Google Meet.
+- **Mouse**: clique em painéis, tarefas, dias do gráfico e eventos; roda para rolar o painel sob o ponteiro.
+- **Tema claro** e a flag `-theme auto|dark|light`. O modo `auto` acompanha o fundo do terminal, e o tema também pode ser trocado em execução.
+- `-version` agora mostra o commit de origem do binário.
+- Abertura de links com suporte ao WSL (`wslview` e `explorer.exe`), usada nos detalhes do evento e no login do Google.
+- Testes automatizados para a interface, os casos de uso, o domínio, o adapter do Google, a abertura de links e o `-update`.
+- Documentação em `docs/`: `USAGE.md`, `CLI.md`, `PRIORITY.md` e `ARCHITECTURE.md`.
+
+### Changed
+
+- **Incompatível:** interface migrada para Bubble Tea, Lip Gloss e Bubbles v2, o que **requer Go 1.24.2 ou superior**.
+- Layout calculado por uma função pura e testada: agenda, gráfico e progresso são cartões independentes, e os diálogos (formulários, ajuda, detalhes) são desenhados sobre o dashboard em vez de ocupar a tela inteira.
+- Estado de interação centralizado em um único modo, no lugar de vários booleanos. Com a ajuda aberta, apenas `?`, `Esc` e `q` agem.
+- Barra de atalhos baseada em `bubbles/help`, que reduz os atalhos por prioridade conforme a largura e mantém sempre ajuda e sair.
+- Dias sem atividade no gráfico aparecem como um ponto discreto, e o progresso do ano usa uma barra com gradiente.
+- A agenda rola acompanhando a seleção e indica quantos eventos estão visíveis.
+- **Incompatível:** `domain.TaskRepository` ganhou o método `UpdateTask`; implementações próprias do repositório precisam adicioná-lo.
+- O modo `-offline` ganhou eventos de exemplo passados e futuros, com links e descrição.
+- README reescrito de forma mais objetiva, com o conteúdo detalhado movido para `docs/` e a captura de tela em `docs/PREVIEW.md`.
+
+### Fixed
+
+- **`-update` mudava apenas o número da versão.** O binário era carimbado com a tag mais recente mesmo quando o `git` não tinha trazido o código dela (por exemplo, após cair no fallback para `main`), e o resultado era gravado no diretório atual em vez de substituir o executável em uso. Agora a release é clonada em um diretório temporário, compilada, verificada pelo commit embutido e só então instalada, sem tocar na sua cópia do código. As credenciais do Google embutidas no binário são preservadas.
+- Prazos do Google Tasks apareciam como "21:00 do dia anterior" e a criação com horário podia mover a data. O Google guarda apenas a data; ela agora é lida e gravada sem conversão de fuso.
+- O login do Google não abria o navegador no WSL.
+- Alturas de terminal entre 11 e 15 linhas no layout empilhado reservavam mais linhas do que existiam.
+- Avisos do `go vet` em `internal/adapter/google/auth.go`. `go vet ./...` agora passa.
+- `go.sum` passou a ser versionado, o que é necessário para compilar a partir de um clone limpo (e para o `-update`).
+
+**Pull Requests**
+- TUI-05: Add search, command palette, task editing, year navigation and event details by @TETEURYAN in https://github.com/TETEURYAN/tocli/pull/7
+
+**Full Changelog**: https://github.com/TETEURYAN/tocli/compare/v1.1.0...v2.0.0
+
 ## [1.1.0] - 2026-07-09
 
 Adiciona um segundo modo ao painel de gráfico: avaliação diária de humor/produtividade, com nota de texto livre e exportação em CSV.

@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
+	zone "github.com/lrstanley/bubblezone/v2"
 )
 
 type TaskListModel struct {
@@ -77,7 +78,7 @@ func (m *TaskListModel) View() string {
 
 	for i := m.Offset; i < end; i++ {
 		task := m.Tasks[i]
-		line := m.renderTask(task, i == m.Cursor)
+		line := zone.Mark(zoneTask(i), m.renderTask(task, i == m.Cursor))
 		lines = append(lines, line)
 	}
 
@@ -92,14 +93,14 @@ func (m *TaskListModel) View() string {
 func (m TaskListModel) renderTask(task domain.Task, selected bool) string {
 	s := m.styles
 	pri := domain.TaskEffectivePriority(task)
-	accent := theme.ListCategoryAccent(task.ListName)
+	accent := s.T.ListCategoryAccent(task.ListName)
 	mark := theme.ListCategoryMarker(task.ListName)
 	switch pri {
 	case domain.TaskPriorityUrgent:
-		accent = theme.T.Error
+		accent = s.T.Error
 		mark = "U"
 	case domain.TaskPriorityImportant:
-		accent = theme.T.Warning
+		accent = s.T.Warning
 		mark = "I"
 	}
 	// Cursor + colored marker + space + title (+ optional due).

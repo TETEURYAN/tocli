@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 type AgendaModel struct {
@@ -44,20 +44,69 @@ func (m AgendaModel) renderTodayAgenda() string {
 		return lipgloss.JoinVertical(lipgloss.Left, title, subtitle, "", content)
 	}
 
+	first, last := m.visibleEvents()
+	if first > 0 || last < len(m.Events) {
+		subtitle += s.Dim.Render(fmt.Sprintf("  · %d–%d of %d", first+1, last, len(m.Events)))
+	}
+
 	var lines []string
 	lines = append(lines, title, subtitle, "")
 
-	for i, evt := range m.Events {
-		line := m.renderEvent(evt, i == m.Cursor)
-		lines = append(lines, line)
-
+	for i := first; i < last; i++ {
+		evt := m.Events[i]
+		rows := []string{m.renderEvent(evt, i == m.Cursor)}
 		if evt.Location != "" {
-			loc := s.Location.Render(fmt.Sprintf("                  %s", evt.Location))
-			lines = append(lines, loc)
+			rows = append(rows, s.Location.Render(fmt.Sprintf("                  %s", evt.Location)))
 		}
+		lines = append(lines, markRows(zoneEvent(i), m.Width, rows)...)
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// eventLines is how many rows an event takes: one, plus one for its location.
+func eventLines(e domain.Event) int {
+	if e.Location != "" {
+		return 2
+	}
+	return 1
+}
+
+// agendaHeaderLines is title + subtitle + blank line.
+const agendaHeaderLines = 3
+
+// visibleEvents returns the [first, last) window of events that fits in the pane. While the
+// pane is focused the window follows the cursor; unfocused it always starts at the first event.
+// With no Height set (0) everything is shown.
+func (m AgendaModel) visibleEvents() (first, last int) {
+	n := len(m.Events)
+	if m.Height <= 0 || n == 0 {
+		return 0, n
+	}
+	budget := max(1, m.Height-agendaHeaderLines)
+
+	cursor := min(max(m.Cursor, 0), n-1)
+	if m.Focused {
+		for first < cursor {
+			used := 0
+			for i := first; i <= cursor; i++ {
+				used += eventLines(m.Events[i])
+			}
+			if used <= budget {
+				break
+			}
+			first++
+		}
+	}
+
+	used := 0
+	for last = first; last < n; last++ {
+		used += eventLines(m.Events[last])
+		if used > budget && last > first {
+			break
+		}
+	}
+	return first, last
 }
 
 func (m AgendaModel) renderDayDetail() string {
