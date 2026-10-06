@@ -6,6 +6,23 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), e e
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-06
+
+Corrige a barra de espaço, que não alterava o status da tarefa na 2.0.0.
+
+### Fixed
+
+- **A tecla `Espaço` não concluía nem reabria a tarefa selecionada.** O Bubble Tea v2 identifica a barra de espaço como `space`, mas o atalho ainda usava a grafia da v1 (`" "`), então nunca casava. O `Enter` não foi afetado.
+
+### Changed
+
+- Os testes de teclado agora enviam teclas decodificadas a partir dos bytes que um terminal de verdade envia, em vez de mensagens montadas à mão, que foi como o problema passou despercebido. Novos testes garantem que todo atalho do mapa de teclas corresponde a uma tecla que o terminal produz, cobrem o comportamento da barra de espaço e verificam as teclas de cada painel e diálogo.
+
+**Pull Requests**
+- TUI-06: Fix the space bar not toggling tasks by @TETEURYAN in https://github.com/TETEURYAN/tocli/pull/8
+
+**Full Changelog**: https://github.com/TETEURYAN/tocli/compare/v2.0.0...v2.0.1
+
 ## [2.0.0] - 2026-10-06
 
 Adiciona busca de eventos, paleta de comandos, edição de tarefas, navegação entre anos e detalhes do evento. A interface foi migrada para o Charm v2, com layout em cartões, tema claro e suporte a mouse. O `-update` foi corrigido: ele atualizava apenas o número da versão, sem trazer o código novo.
