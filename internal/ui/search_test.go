@@ -171,13 +171,13 @@ func TestSearchNavigationClamps(t *testing.T) {
 		t.Errorf("up at the top moved the selection to %d", m.search.sel)
 	}
 	for i := 0; i < 10; i++ {
-		next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+		next, _ := m.Update(termKey(t, "down"))
 		m = asModel(t, next)
 	}
 	if m.search.sel != 2 {
 		t.Errorf("down past the end left selection at %d, want 2", m.search.sel)
 	}
-	next, _ := m.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
+	next, _ := m.Update(termKey(t, "ctrl+p"))
 	if got := asModel(t, next).search.sel; got != 1 {
 		t.Errorf("ctrl+p selection = %d, want 1", got)
 	}

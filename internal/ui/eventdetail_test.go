@@ -316,7 +316,7 @@ func TestLongDescriptionsScrollAndClamp(t *testing.T) {
 	if want := l.descTotal - l.descRows; m.detail.scroll != want {
 		t.Errorf("scroll = %d at the bottom, want %d", m.detail.scroll, want)
 	}
-	next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	next, _ = m.Update(termKey(t, "pgup"))
 	m = asModel(t, next)
 	if m.detail.scroll != l.descTotal-2*l.descRows {
 		t.Errorf("pgup scroll = %d", m.detail.scroll)

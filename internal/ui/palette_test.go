@@ -61,7 +61,7 @@ func TestTypingAGreaterThanSwitchesAnOpenSearchToCommands(t *testing.T) {
 		t.Errorf("after >: commandMode=%v commands=%d results=%v", m.commandMode(), len(m.search.commands), m.search.results)
 	}
 	// Deleting the > goes back to events.
-	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	next, _ := m.Update(termKey(t, "backspace"))
 	m = asModel(t, next)
 	if m.commandMode() || m.search.commands != nil {
 		t.Errorf("after backspace: commandMode=%v commands=%v", m.commandMode(), m.search.commands)
@@ -359,7 +359,7 @@ func TestCommandSelectionClampsAndSurvivesRefiltering(t *testing.T) {
 	m := newMockModel(t)
 	m, _ = press(t, m, ":")
 	for i := 0; i < 100; i++ {
-		next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+		next, _ := m.Update(termKey(t, "down"))
 		m = asModel(t, next)
 	}
 	if m.search.sel != len(m.search.commands)-1 {
